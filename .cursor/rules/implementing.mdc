@@ -1,0 +1,33 @@
+---
+globs: **/*implementation.md
+alwaysApply: false
+---
+# Implementation Document Standards
+
+## 1. Scope
+
+- **Files**: `implementation.md` — one per design (e.g. `design.md` ↔ `implementation.md`). Same dir/naming as design; create if missing when implementing.
+- **Role**: APIs, libraries, developer notes for realising the design. On task start: read paired `implementation.md` when implementing that design.
+- **Format**: Headings + lists + inline code; one line per fact; no prose.
+
+## 2. Structure
+
+Sections in order; include only if they have content:
+
+| Section | Content |
+|--------|--------|
+| **APIs** | `**[Lib]**` `snippet` — one-line when/gotcha. |
+| **Libraries** | Name; version if fixed; purpose. One line each. |
+| **Developer instructions** | Workflow, command, pattern, constraint. One fact per line. |
+| **Design-specific** | Invariants, non-obvious behaviour, integration. If multiple designs: subheadings by design filename. |
+
+## 3. When to write
+
+- Design needs API → **APIs**. Design needs library → **Libraries**. Developer gives instruction → **Developer instructions**. User corrects → update immediately.
+- Do not duplicate design (types, responsibilities). No long examples or tutorials.
+
+## 4. Rules
+
+- One to two lines per API; canonical import + when/gotcha. Remove lib when design no longer uses it.
+- Developer instructions: concrete only; update/remove when workflow changes.
+- On user correction: update the paired `implementation.md`; deduplicate; remove obsolete. Scope = implementation only; design stays in design file. Do not remove API/lib/instruction without user request or obsolescence.

@@ -1,0 +1,49 @@
+---
+description: Design documentation standards for *design.md files
+---
+
+# Design Documentation Standards
+
+## 1. Required structure (every design doc)
+
+Sections **MUST** appear in this order:
+
+| Section | Content |
+|--------|--------|
+| **Design Overview** | Types/classes; relationships (one-way only); abstract types; exceptions/errors; dependency roles (data holders vs orchestrators/helpers) when multiple types exist. |
+| **Class / Type Specifications** | Per type: Responsibility (one sentence), state/fields, methods (Behavior / Input / Output / errors). Example usage. |
+| **Function Specifications** | Per module or group: global/public functions. Per function: **name(signature)** — Responsibility; Behavior; Input; Output; errors (raised/thrown or returned). Omit section if no global functions. |
+| **Exception / Error Types** | Each type and when it is raised or returned. |
+| **Validation Rules** | Per component: validation rules. |
+
+**Overview format** (concise paragraph + inline code):
+- **Classes**: `ClassA`, `ClassB`, `ClassC`
+- **Relationships**: `ClassA` extends `ClassB`, `ClassA` contains `ClassC` (one-way; no A↔B)
+- **Abstract**: `ClassE` (implemented by `ClassF`, `ClassG`)
+- **Exceptions**: `ExceptionH` extends `ExceptionI`, raised by `ClassA`
+- **Dependency roles** (if multiple classes): Data holders: `ClassC`. Orchestrator: `ClassA`. Helpers: `ClassB` (inputs by argument).
+
+---
+
+## 2. Design constraints (when creating or evaluating designs)
+
+**Dependencies**
+- One-way only: if A holds/uses B, B must not hold/use A.
+- Data holders: only primitives, enums, or other data holders; no orchestrators, services, or heavy domain types.
+- One orchestration owner; helpers get inputs by argument and are stateless or hold minimal context (e.g. cache, config).
+
+**Complexity**
+- Composition over inheritance (wrap/use; extend only for true subtypes).
+- One responsibility per type; minimal public surface (e.g. one parameterized method vs. many variants).
+- Data holders = plain data/record types (value objects, DTOs); only simple helpers (e.g. predicates). Collaborators injectable; default construction in owner allowed.
+
+**SOLID**
+- Single responsibility; interface segregation; depend on abstractions; open for extension (e.g. injectable collaborators), closed for modification.
+
+---
+
+## 3. Change policy (when modifying existing designs)
+
+- No legacy or backward-compatibility requirements; designs can be rebuilt from scratch.
+- Do not change return types, signatures, or behavior of types/methods/functions without explicit user request.
+- Do not add, remove, or rename methods or public functions without explicit instruction. Preserve interface compatibility unless the user asks otherwise.
