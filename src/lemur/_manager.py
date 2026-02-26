@@ -12,7 +12,7 @@ from pathlib import Path
 from php_parser_py import AST, Node, Parser, PrettyPrinter
 
 from ._exceptions import DeinstrumentationError, InstrumentationError
-from ._operations import ASTDeinstrumenter, ASTInstrumenter, _PROBE_FUNC_PREFIX
+from ._operations import _PROBE_FUNC_PREFIX, ASTDeinstrumenter, ASTInstrumenter
 from ._registry import InstrumentationRegistry
 from ._strategies import ProbeStrategy, StandardProbeStrategy
 
@@ -47,7 +47,9 @@ class InstrumentationManager:
             strategy = StandardProbeStrategy()
 
         self._instrumenter = ASTInstrumenter(
-            self.project_ast, strategy, self._probe_func_name,
+            self.project_ast,
+            strategy,
+            self._probe_func_name,
         )
         self._deinstrumenter = ASTDeinstrumenter()
 
@@ -62,7 +64,7 @@ class InstrumentationManager:
         except KeyError:
             pass
 
-        for file_node in project_ast.files():
+        for file_node in project_ast.file_nodes():
             file_path_val = file_node.get_property("absolutePath")
             if file_path_val is not None and str(file_path_val).strip():
                 p = Path(str(file_path_val)).resolve()
@@ -125,7 +127,9 @@ class InstrumentationManager:
         self._cleanup()
         return modified_files
 
-    def _group_targets_by_file(self, targets: dict[str, str]) -> dict[Path, dict[str, str]]:
+    def _group_targets_by_file(
+        self, targets: dict[str, str]
+    ) -> dict[Path, dict[str, str]]:
         """Group targets by file, resolving file membership from AST."""
         by_file: dict[Path, dict[str, str]] = {}
         for node_id, expr_key in targets.items():
@@ -134,8 +138,8 @@ class InstrumentationManager:
         return by_file
 
     def _resolve_file_for_node(self, node_id: str) -> Path:
-        """Resolve which file a node belongs to via ast.get_file()."""
-        file_node = self.project_ast.get_file(node_id)
+        """Resolve which file a node belongs to via ast.get_file_node()."""
+        file_node = self.project_ast.get_file_node(node_id)
         abs_path = file_node.get_property("absolutePath")
         if abs_path:
             return Path(str(abs_path)).resolve()
@@ -157,14 +161,15 @@ class InstrumentationManager:
             )
 
         new_content = PrettyPrinter().print_file(
-            self.project_ast, str(relative_path),
+            self.project_ast,
+            str(relative_path),
         )
         file_path.write_text(new_content, encoding="utf-8")
 
     def _find_file_node(self, file_path: Path) -> Node | None:
         """Find the file node in AST for the given file path."""
         abs_path_str = str(file_path.resolve())
-        for f in self.project_ast.files():
+        for f in self.project_ast.file_nodes():
             node_path = f.get_property("absolutePath")
             if node_path and str(node_path) == abs_path_str:
                 return f
@@ -181,7 +186,8 @@ class InstrumentationManager:
         ).joinpath(_RUNTIME_HELPER_NAME)
         template_content = template_ref.read_text(encoding="utf-8")
         content = template_content.replace(
-            "{{PROBE_FUNC_NAME}}", self._probe_func_name,
+            "{{PROBE_FUNC_NAME}}",
+            self._probe_func_name,
         )
         dest.write_text(content, encoding="utf-8")
 
@@ -195,7 +201,9 @@ class InstrumentationManager:
 
         if "<?php" in content:
             content = content.replace(
-                "<?php", f"<?php\n{require_line}\n", 1,
+                "<?php",
+                f"<?php\n{require_line}\n",
+                1,
             )
             file_path.write_text(content, encoding="utf-8")
 
@@ -209,7 +217,8 @@ class InstrumentationManager:
 
         lines = content.splitlines(keepends=True)
         new_lines = [
-            line for line in lines
+            line
+            for line in lines
             if not ("require_once" in line and _RUNTIME_HELPER_NAME in line)
         ]
         new_content = "".join(new_lines)
@@ -242,7 +251,10 @@ class InstrumentationManager:
         processed_node_ids: set[str] = set()
         for expr_key in expr_keys:
             if self._deinstrumenter.unwrap_probe_ast(
-                file_path, expr_key, ast, processed_node_ids,
+                file_path,
+                expr_key,
+                ast,
+                processed_node_ids,
             ):
                 unwrapped_count += 1
 

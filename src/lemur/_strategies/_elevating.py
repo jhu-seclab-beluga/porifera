@@ -18,7 +18,10 @@ class ElevatingProbeStrategy(ProbeStrategy):
     """
 
     def select_wrap_target(
-        self, ast: AST, node: Node, wrapped_node_ids: set[str],
+        self,
+        ast: AST,
+        node: Node,
+        wrapped_node_ids: set[str],
     ) -> Node | None:
         if node.id in wrapped_node_ids:
             return None

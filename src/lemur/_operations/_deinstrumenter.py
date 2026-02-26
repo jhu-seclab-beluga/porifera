@@ -46,12 +46,16 @@ class ASTDeinstrumenter:
             exclude_node_ids = set()
 
         call_node_id, original_expr_id = self._find_probe_call_by_expr_key(
-            ast, expr_key, exclude_node_ids,
+            ast,
+            expr_key,
+            exclude_node_ids,
         )
         if call_node_id is None or original_expr_id is None:
             return False
 
-        self._replace_call_with_expression(ast, call_node_id, original_expr_id, file_path)
+        self._replace_call_with_expression(
+            ast, call_node_id, original_expr_id, file_path
+        )
         exclude_node_ids.add(call_node_id)
         return True
 
@@ -154,7 +158,11 @@ class ASTDeinstrumenter:
         return None
 
     def _replace_call_with_expression(
-        self, ast: AST, call_node_id: str, expr_node_id: str, file_path: Path,
+        self,
+        ast: AST,
+        call_node_id: str,
+        expr_node_id: str,
+        file_path: Path,
     ) -> None:
         """Replace probe call node with the original expression node."""
         modifier = Modifier(ast)
@@ -162,12 +170,16 @@ class ASTDeinstrumenter:
         call_node = ast.node(call_node_id)
         parents = list(ast.prev(call_node))
         if not parents:
-            raise DeinstrumentationError(f"Orphaned probe call (no parent) in {file_path}")
+            raise DeinstrumentationError(
+                f"Orphaned probe call (no parent) in {file_path}"
+            )
 
         parent_node = parents[0]
         parent_edge = ast.edge(parent_node.id, call_node_id, "PARENT_OF")
         if not parent_edge:
-            raise DeinstrumentationError(f"No PARENT_OF edge for probe call in {file_path}")
+            raise DeinstrumentationError(
+                f"No PARENT_OF edge for probe call in {file_path}"
+            )
 
         saved_field = parent_edge.get("field")
         saved_index = parent_edge.get("index")
@@ -181,7 +193,10 @@ class ASTDeinstrumenter:
 
         if saved_index is not None:
             modifier.add_edge(
-                parent_node.id, expr_node_id, field=saved_field, index=saved_index,
+                parent_node.id,
+                expr_node_id,
+                field=saved_field,
+                index=saved_index,
             )
         else:
             modifier.add_edge(parent_node.id, expr_node_id, field=saved_field)
@@ -212,6 +227,8 @@ class ASTDeinstrumenter:
 
         result = PrettyPrinter().print(ast)
         if not result:
-            raise DeinstrumentationError(f"PrettyPrinter produced no output for {php_file}")
+            raise DeinstrumentationError(
+                f"PrettyPrinter produced no output for {php_file}"
+            )
         php_file.write_text(next(iter(result.values())), encoding="utf-8")
         return True

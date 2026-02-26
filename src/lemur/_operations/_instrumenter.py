@@ -28,7 +28,9 @@ class ASTInstrumenter:
         _probe_func_name: Auto-generated probe function name (from Manager).
     """
 
-    def __init__(self, project_ast: AST, strategy: ProbeStrategy, probe_func_name: str) -> None:
+    def __init__(
+        self, project_ast: AST, strategy: ProbeStrategy, probe_func_name: str
+    ) -> None:
         self._ast = project_ast
         self._modifier = Modifier(project_ast)
         self._strategy = strategy
@@ -52,7 +54,9 @@ class ASTInstrumenter:
         node = self._ast.node(node_id)
         target = self._strategy.select_wrap_target(self._ast, node, self._wrapped_nodes)
         if target is None:
-            logger.warning("Skipping '%s' (node %s): no safe wrap target", expr_key, node_id)
+            logger.warning(
+                "Skipping '%s' (node %s): no safe wrap target", expr_key, node_id
+            )
             return False
 
         self._wrap_node(target, expr_key)
@@ -70,7 +74,13 @@ class ASTInstrumenter:
         line_props = {"startLine": node.start_line, "endLine": node.end_line}
 
         self._create_probe_nodes(
-            name_id, str_id, arg1_id, arg2_id, func_call_id, expr_key, line_props,
+            name_id,
+            str_id,
+            arg1_id,
+            arg2_id,
+            func_call_id,
+            expr_key,
+            line_props,
         )
         self._reparent_target(node, arg2_id, func_call_id)
 
@@ -86,19 +96,33 @@ class ASTInstrumenter:
     ) -> None:
         """Create all probe AST nodes: Name, Scalar_String, Args, Expr_FuncCall."""
         self._modifier.add_node(
-            name_id, "Name", parts=[self._probe_func_name], **line_props,
+            name_id,
+            "Name",
+            parts=[self._probe_func_name],
+            **line_props,
         )
         self._modifier.add_node(
-            str_id, "Scalar_String", value=expr_key, **line_props,
+            str_id,
+            "Scalar_String",
+            value=expr_key,
+            **line_props,
         )
 
         self._modifier.add_node(
-            arg1_id, "Arg", byRef=False, unpack=False, **line_props,
+            arg1_id,
+            "Arg",
+            byRef=False,
+            unpack=False,
+            **line_props,
         )
         self._modifier.add_edge(arg1_id, str_id, field="value")
 
         self._modifier.add_node(
-            arg2_id, "Arg", byRef=False, unpack=False, **line_props,
+            arg2_id,
+            "Arg",
+            byRef=False,
+            unpack=False,
+            **line_props,
         )
 
         self._modifier.add_node(func_call_id, "Expr_FuncCall", **line_props)
@@ -125,7 +149,10 @@ class ASTInstrumenter:
 
         if saved_index is not None:
             self._modifier.add_edge(
-                parent_node.id, func_call_id, field=saved_field, index=saved_index,
+                parent_node.id,
+                func_call_id,
+                field=saved_field,
+                index=saved_index,
             )
         else:
             self._modifier.add_edge(parent_node.id, func_call_id, field=saved_field)
