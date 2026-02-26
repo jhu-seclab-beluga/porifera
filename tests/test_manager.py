@@ -1,22 +1,25 @@
 """Tests for porifera._manager using real PHP code."""
 
+import re
 from pathlib import Path
 
-import pytest
+from conftest import find_child, find_node, find_nodes, write_php
 from php_parser_py import Parser
 
-from conftest import find_child, find_node, find_nodes, parse_php, write_php
-from porifera._exceptions import InstrumentationError
-from porifera._manager import InstrumentationManager, _RUNTIME_HELPER_NAME, deinstrument, instrument
-
-import re
-
+from porifera._manager import (
+    _RUNTIME_HELPER_NAME,
+    InstrumentationManager,
+    deinstrument,
+    instrument,
+)
+from porifera._strategies._elevating import ElevatingProbeStrategy
 
 # --- _resolve_project_root ---
 
+
 def test_resolve_project_root_from_project_node(tmp_path: Path):
     """Project root is resolved from project node absolutePath."""
-    write_php(tmp_path, "app.php", '<?php\necho 1;\n')
+    write_php(tmp_path, "app.php", "<?php\necho 1;\n")
     ast = Parser().parse_file(str(tmp_path / "app.php"))
     root = InstrumentationManager._resolve_project_root(ast)
     assert root == tmp_path.resolve()
@@ -24,7 +27,7 @@ def test_resolve_project_root_from_project_node(tmp_path: Path):
 
 def test_resolve_project_root_falls_back_to_file_node(tmp_path: Path):
     """Project root falls back to parent of first file node."""
-    write_php(tmp_path, "app.php", '<?php\necho 1;\n')
+    write_php(tmp_path, "app.php", "<?php\necho 1;\n")
     ast = Parser().parse_file(str(tmp_path / "app.php"))
     # Real parser always has a project node, so this tests the normal path
     root = InstrumentationManager._resolve_project_root(ast)
@@ -33,13 +36,14 @@ def test_resolve_project_root_falls_back_to_file_node(tmp_path: Path):
 
 # --- instrument ---
 
+
 def test_instrument_empty_targets(tmp_path: Path):
     """Empty targets dict returns empty list."""
     write_php(tmp_path, "app.php", '<?php\necho "hello";\n')
     ast = Parser().parse_file(str(tmp_path / "app.php"))
     manager = InstrumentationManager(ast)
     result = manager.instrument({})
-    assert result == []
+    assert not result
 
 
 def test_instrument_wraps_and_regenerates_file(tmp_path: Path):
@@ -105,7 +109,7 @@ def test_instrument_multiple_targets_same_file(tmp_path: Path):
 
 def test_instrument_skips_unsafe_targets(tmp_path: Path):
     """Lvalue targets are skipped; no file modification if all skip."""
-    write_php(tmp_path, "app.php", '<?php\n$x = 42;\n')
+    write_php(tmp_path, "app.php", "<?php\n$x = 42;\n")
     ast = Parser().parse_file(str(tmp_path / "app.php"))
     assign = find_node(ast, "Expr_Assign")
     lhs = find_child(ast, assign, "var")
@@ -115,23 +119,24 @@ def test_instrument_skips_unsafe_targets(tmp_path: Path):
     modified = manager.instrument({lhs.id: "x_var"})
     # The rvalue 42 is NOT targeted, so no file should be modified
     # But runtime helper was created — check modified list
-    assert modified == []
+    assert not modified
 
 
 # --- deinstrument ---
 
+
 def test_deinstrument_registry_mode_empty(tmp_path: Path):
     """Deinstrument with empty registry returns empty."""
-    write_php(tmp_path, "app.php", '<?php\necho 1;\n')
+    write_php(tmp_path, "app.php", "<?php\necho 1;\n")
     ast = Parser().parse_file(str(tmp_path / "app.php"))
     manager = InstrumentationManager(ast)
     result = manager.deinstrument(use_registry=True)
-    assert result == []
+    assert not result
 
 
 def test_deinstrument_cleanup_removes_helper(tmp_path: Path):
     """Deinstrument removes runtime helper file."""
-    write_php(tmp_path, "app.php", '<?php\necho 1;\n')
+    write_php(tmp_path, "app.php", "<?php\necho 1;\n")
     ast = Parser().parse_file(str(tmp_path / "app.php"))
     manager = InstrumentationManager(ast)
 
@@ -163,7 +168,7 @@ def test_full_instrument_deinstrument_roundtrip(tmp_path: Path):
     # Copy registry from original manager
     manager2.registry.data = dict(manager.registry.data)
     manager2.registry._save()
-    modified = manager2.deinstrument(use_registry=True)
+    manager2.deinstrument(use_registry=True)
 
     restored = (tmp_path / "app.php").read_text()
     assert manager._probe_func_name not in restored
@@ -172,9 +177,10 @@ def test_full_instrument_deinstrument_roundtrip(tmp_path: Path):
 
 # --- inject / remove require ---
 
+
 def test_inject_require(tmp_path: Path):
     """require_once is injected after <?php tag."""
-    write_php(tmp_path, "app.php", '<?php\necho 1;\n')
+    write_php(tmp_path, "app.php", "<?php\necho 1;\n")
     ast = Parser().parse_file(str(tmp_path / "app.php"))
     manager = InstrumentationManager(ast)
 
@@ -188,7 +194,7 @@ def test_inject_require(tmp_path: Path):
 
 def test_inject_require_idempotent(tmp_path: Path):
     """Injecting require twice doesn't duplicate."""
-    write_php(tmp_path, "app.php", '<?php\necho 1;\n')
+    write_php(tmp_path, "app.php", "<?php\necho 1;\n")
     ast = Parser().parse_file(str(tmp_path / "app.php"))
     manager = InstrumentationManager(ast)
 
@@ -203,7 +209,7 @@ def test_inject_require_idempotent(tmp_path: Path):
 
 def test_remove_require(tmp_path: Path):
     """require_once line is removed."""
-    write_php(tmp_path, "app.php", '<?php\necho 1;\n')
+    write_php(tmp_path, "app.php", "<?php\necho 1;\n")
     ast = Parser().parse_file(str(tmp_path / "app.php"))
     manager = InstrumentationManager(ast)
 
@@ -218,7 +224,7 @@ def test_remove_require(tmp_path: Path):
 
 def test_remove_require_no_require_returns_false(tmp_path: Path):
     """_remove_require returns False when no require_once exists."""
-    write_php(tmp_path, "app.php", '<?php\necho 1;\n')
+    write_php(tmp_path, "app.php", "<?php\necho 1;\n")
     ast = Parser().parse_file(str(tmp_path / "app.php"))
     manager = InstrumentationManager(ast)
 
@@ -229,6 +235,7 @@ def test_remove_require_no_require_returns_false(tmp_path: Path):
 
 
 # --- Public API ---
+
 
 def test_public_instrument(tmp_path: Path):
     """Public instrument() function wraps target and returns modified files."""
@@ -251,7 +258,7 @@ def test_public_deinstrument(tmp_path: Path):
     instrument({target.id: "greeting"}, ast)
     # Re-parse for deinstrument
     ast2 = Parser().parse_file(str(tmp_path / "app.php"))
-    result = deinstrument(ast2, use_registry=False)
+    deinstrument(ast2, use_registry=False)
 
     content = (tmp_path / "app.php").read_text()
     assert "hello" in content
@@ -259,9 +266,17 @@ def test_public_deinstrument(tmp_path: Path):
 
 # --- instrument: OOP PHP constructs ---
 
+
 def test_instrument_class_method_expression(tmp_path: Path):
     """Instrument expression inside a class method body."""
-    code = '<?php\nclass Calculator {\n    public function add($a, $b) {\n        return $a + $b;\n    }\n}\n'
+    code = (
+        "<?php\n"
+        "class Calculator {\n"
+        "    public function add($a, $b) {\n"
+        "        return $a + $b;\n"
+        "    }\n"
+        "}\n"
+    )
     php_file = write_php(tmp_path, "calc.php", code)
     ast = Parser().parse_file(str(php_file))
     plus = find_node(ast, "Expr_BinaryOp_Plus")
@@ -277,7 +292,7 @@ def test_instrument_class_method_expression(tmp_path: Path):
 
 def test_instrument_method_call_rvalue(tmp_path: Path):
     """Instrument method call result as assignment rvalue."""
-    code = '<?php\n$result = $obj->getStatus();\n'
+    code = "<?php\n$result = $obj->getStatus();\n"
     php_file = write_php(tmp_path, "app.php", code)
     ast = Parser().parse_file(str(php_file))
     method_call = find_node(ast, "Expr_MethodCall")
@@ -292,7 +307,7 @@ def test_instrument_method_call_rvalue(tmp_path: Path):
 
 def test_instrument_static_call_rvalue(tmp_path: Path):
     """Instrument static method call result as assignment rvalue."""
-    code = '<?php\n$instance = Config::load();\n'
+    code = "<?php\n$instance = Config::load();\n"
     php_file = write_php(tmp_path, "app.php", code)
     ast = Parser().parse_file(str(php_file))
     static_call = find_node(ast, "Expr_StaticCall")
@@ -307,7 +322,7 @@ def test_instrument_static_call_rvalue(tmp_path: Path):
 
 def test_instrument_new_instance_rvalue(tmp_path: Path):
     """Instrument new Foo() as assignment rvalue."""
-    code = '<?php\n$svc = new UserService();\n'
+    code = "<?php\n$svc = new UserService();\n"
     php_file = write_php(tmp_path, "app.php", code)
     ast = Parser().parse_file(str(php_file))
     new_expr = find_node(ast, "Expr_New")
@@ -321,6 +336,7 @@ def test_instrument_new_instance_rvalue(tmp_path: Path):
 
 
 # --- instrument: complex expressions ---
+
 
 def test_instrument_null_coalesce_expression(tmp_path: Path):
     """Instrument null coalescing expression."""
@@ -339,7 +355,7 @@ def test_instrument_null_coalesce_expression(tmp_path: Path):
 
 def test_instrument_closure_argument(tmp_path: Path):
     """Instrument closure passed as function argument."""
-    code = '<?php\n$filtered = array_filter($items, function($item) { return $item > 0; });\n'
+    code = "<?php\n$filtered = array_filter($items, function($item) { return $item > 0; });\n"
     php_file = write_php(tmp_path, "app.php", code)
     ast = Parser().parse_file(str(php_file))
     closure = find_node(ast, "Expr_Closure")
@@ -354,7 +370,7 @@ def test_instrument_closure_argument(tmp_path: Path):
 
 def test_instrument_arrow_function_rvalue(tmp_path: Path):
     """Instrument arrow function as assignment rvalue."""
-    code = '<?php\n$double = fn($n) => $n * 2;\n'
+    code = "<?php\n$double = fn($n) => $n * 2;\n"
     php_file = write_php(tmp_path, "app.php", code)
     ast = Parser().parse_file(str(php_file))
     arrow = find_node(ast, "Expr_ArrowFunction")
@@ -369,7 +385,7 @@ def test_instrument_arrow_function_rvalue(tmp_path: Path):
 
 def test_instrument_instanceof_condition(tmp_path: Path):
     """Instrument instanceof check as assignment rvalue."""
-    code = '<?php\n$isAdmin = $user instanceof AdminUser;\n'
+    code = "<?php\n$isAdmin = $user instanceof AdminUser;\n"
     php_file = write_php(tmp_path, "app.php", code)
     ast = Parser().parse_file(str(php_file))
     instanceof = find_node(ast, "Expr_Instanceof")
@@ -384,18 +400,19 @@ def test_instrument_instanceof_condition(tmp_path: Path):
 
 # --- instrument: multiple targets complex code ---
 
+
 def test_instrument_multiple_targets_class_with_methods(tmp_path: Path):
     """Instrument multiple targets across a class with multiple methods."""
     code = (
-        '<?php\n'
-        'class UserService {\n'
-        '    public function getFullName($first, $last) {\n'
+        "<?php\n"
+        "class UserService {\n"
+        "    public function getFullName($first, $last) {\n"
         '        return $first . " " . $last;\n'
-        '    }\n'
-        '    public function isActive($user) {\n'
+        "    }\n"
+        "    public function isActive($user) {\n"
         '        return $user->status === "active";\n'
-        '    }\n'
-        '}\n'
+        "    }\n"
+        "}\n"
     )
     php_file = write_php(tmp_path, "user_service.php", code)
     ast = Parser().parse_file(str(php_file))
@@ -415,7 +432,7 @@ def test_instrument_multiple_targets_class_with_methods(tmp_path: Path):
 
 def test_instrument_mixed_safe_and_unsafe_targets(tmp_path: Path):
     """Only safe targets are instrumented; unsafe ones are skipped."""
-    code = '<?php\n$x = 42;\n$y = $x + 1;\n'
+    code = "<?php\n$x = 42;\n$y = $x + 1;\n"
     php_file = write_php(tmp_path, "app.php", code)
     ast = Parser().parse_file(str(php_file))
 
@@ -434,11 +451,11 @@ def test_instrument_mixed_safe_and_unsafe_targets(tmp_path: Path):
 
 # --- instrument: with ElevatingProbeStrategy ---
 
+
 def test_instrument_with_elevating_strategy(tmp_path: Path):
     """Manager with ElevatingProbeStrategy elevates lvalue to assignment."""
-    from porifera._strategies._elevating import ElevatingProbeStrategy
 
-    code = '<?php\nfor ($i = 0; $i < 10; $i++) { echo $i; }\n'
+    code = "<?php\nfor ($i = 0; $i < 10; $i++) { echo $i; }\n"
     php_file = write_php(tmp_path, "app.php", code)
     ast = Parser().parse_file(str(php_file))
 
@@ -456,9 +473,17 @@ def test_instrument_with_elevating_strategy(tmp_path: Path):
 
 # --- full roundtrip: complex PHP ---
 
+
 def test_roundtrip_class_with_method(tmp_path: Path):
     """Full roundtrip: instrument class method expression, then restore."""
-    code = '<?php\nclass Greeter {\n    public function greet($name) {\n        return "Hello, " . $name;\n    }\n}\n'
+    code = (
+        "<?php\n"
+        "class Greeter {\n"
+        "    public function greet($name) {\n"
+        '        return "Hello, " . $name;\n'
+        "    }\n"
+        "}\n"
+    )
     php_file = write_php(tmp_path, "greeter.php", code)
     ast = Parser().parse_file(str(php_file))
     concat = find_node(ast, "Expr_BinaryOp_Concat")
@@ -484,7 +509,7 @@ def test_roundtrip_class_with_method(tmp_path: Path):
 
 def test_roundtrip_multiple_targets(tmp_path: Path):
     """Full roundtrip: instrument multiple targets, then restore all."""
-    code = '<?php\n$a = 10;\n$b = 20;\necho $a + $b;\n'
+    code = "<?php\n$a = 10;\n$b = 20;\necho $a + $b;\n"
     php_file = write_php(tmp_path, "app.php", code)
     ast = Parser().parse_file(str(php_file))
 
@@ -510,16 +535,16 @@ def test_roundtrip_multiple_targets(tmp_path: Path):
 def test_roundtrip_scan_mode_complex_code(tmp_path: Path):
     """Full roundtrip via scan mode with complex OOP code."""
     code = (
-        '<?php\n'
-        'class Logger {\n'
-        '    private $level;\n'
-        '    public function __construct($level) {\n'
-        '        $this->level = $level;\n'
-        '    }\n'
-        '    public function log($msg) {\n'
+        "<?php\n"
+        "class Logger {\n"
+        "    private $level;\n"
+        "    public function __construct($level) {\n"
+        "        $this->level = $level;\n"
+        "    }\n"
+        "    public function log($msg) {\n"
         '        echo "[" . $this->level . "] " . $msg;\n'
-        '    }\n'
-        '}\n'
+        "    }\n"
+        "}\n"
     )
     php_file = write_php(tmp_path, "logger.php", code)
     ast = Parser().parse_file(str(php_file))
@@ -566,7 +591,7 @@ def test_roundtrip_null_coalesce(tmp_path: Path):
 
 def test_roundtrip_closure(tmp_path: Path):
     """Full roundtrip with closure expression."""
-    code = '<?php\n$fn = function($x) { return $x * 2; };\n'
+    code = "<?php\n$fn = function($x) { return $x * 2; };\n"
     php_file = write_php(tmp_path, "app.php", code)
     ast = Parser().parse_file(str(php_file))
     closure = find_node(ast, "Expr_Closure")
@@ -584,9 +609,10 @@ def test_roundtrip_closure(tmp_path: Path):
 
 # --- Public API: complex scenarios ---
 
+
 def test_public_instrument_class_code(tmp_path: Path):
     """Public instrument() wraps target inside class code."""
-    code = '<?php\nclass Adder {\n    public function run($x) { return $x + 1; }\n}\n'
+    code = "<?php\nclass Adder {\n    public function run($x) { return $x + 1; }\n}\n"
     php_file = write_php(tmp_path, "adder.php", code)
     ast = Parser().parse_file(str(php_file))
     plus = find_node(ast, "Expr_BinaryOp_Plus")
@@ -599,7 +625,7 @@ def test_public_instrument_class_code(tmp_path: Path):
 
 def test_public_deinstrument_class_code(tmp_path: Path):
     """Public deinstrument() restores class code via scan mode."""
-    code = '<?php\nclass Adder {\n    public function run($x) { return $x + 1; }\n}\n'
+    code = "<?php\nclass Adder {\n    public function run($x) { return $x + 1; }\n}\n"
     php_file = write_php(tmp_path, "adder.php", code)
     ast = Parser().parse_file(str(php_file))
     plus = find_node(ast, "Expr_BinaryOp_Plus")
@@ -616,9 +642,8 @@ def test_public_deinstrument_class_code(tmp_path: Path):
 
 def test_public_instrument_with_elevating_strategy(tmp_path: Path):
     """Public instrument() with ElevatingProbeStrategy."""
-    from porifera._strategies._elevating import ElevatingProbeStrategy
 
-    code = '<?php\n$i = 0;\n$i++;\necho $i;\n'
+    code = "<?php\n$i = 0;\n$i++;\necho $i;\n"
     php_file = write_php(tmp_path, "app.php", code)
     ast = Parser().parse_file(str(php_file))
     post_inc = find_node(ast, "Expr_PostInc")
@@ -632,6 +657,7 @@ def test_public_instrument_with_elevating_strategy(tmp_path: Path):
 
 
 # --- output_dir ---
+
 
 def test_instrument_default_output_dir(tmp_path: Path):
     """Default output_dir uses __DIR__ in generated runtime helper."""
@@ -678,7 +704,8 @@ def test_instrument_runtime_helper_has_timestamp(tmp_path: Path):
     content = helper.read_text()
     # Timestamp format: YYYYMMDD_HHMMSS_hexsuffix
     assert re.search(
-        r"\.porifera_data_\d{8}_\d{6}_[0-9a-f]{6}\.jsonl", content,
+        r"\.porifera_data_\d{8}_\d{6}_[0-9a-f]{6}\.jsonl",
+        content,
     )
 
 
@@ -707,7 +734,9 @@ def test_public_instrument_with_output_dir(tmp_path: Path):
     target = find_node(ast, "Scalar_String")
 
     result = instrument(
-        {target.id: "greeting"}, ast, output_dir=output_dir,
+        {target.id: "greeting"},
+        ast,
+        output_dir=output_dir,
     )
     assert len(result) == 1
 

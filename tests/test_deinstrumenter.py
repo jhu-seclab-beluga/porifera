@@ -2,26 +2,28 @@
 
 from pathlib import Path
 
+from conftest import find_node, find_nodes, parse_php, write_php
 from php_parser_py import PrettyPrinter
 
-from conftest import find_node, find_nodes, parse_php, write_php
 from porifera._operations._deinstrumenter import ASTDeinstrumenter
-from porifera._operations._instrumenter import ASTInstrumenter, _PROBE_FUNC_PREFIX
+from porifera._operations._instrumenter import ASTInstrumenter
 from porifera._strategies._standard import StandardProbeStrategy
 
-
 # --- unwrap_probe_ast ---
+
 
 def test_unwrap_restores_echo_string(tmp_path: Path):
     """Instrument echo 'hello', then unwrap — output should have no probe."""
     ast = parse_php(tmp_path, code='<?php\necho "hello";\n')
     target = find_node(ast, "Scalar_String")
 
-    instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_test1234")
+    instrumenter = ASTInstrumenter(
+        ast, StandardProbeStrategy(), "__porifera_probe_test1234"
+    )
     instrumenter.instrument_node(target.id, "greeting")
 
     # Verify instrumented
-    rel_path = ast.file_nodes()[0].get_property("relativePath")
+    rel_path = str(ast.file_nodes()[0].get_property("relativePath"))
     output = PrettyPrinter().print_file(ast, rel_path)
     assert "__porifera_probe_test1234" in output
 
@@ -37,7 +39,7 @@ def test_unwrap_restores_echo_string(tmp_path: Path):
 
 def test_unwrap_restores_numeric_rvalue(tmp_path: Path):
     """Instrument $x = 42 rvalue, then unwrap."""
-    ast = parse_php(tmp_path, code='<?php\n$x = 42;\n')
+    ast = parse_php(tmp_path, code="<?php\n$x = 42;\n")
     rhs = find_node(ast, "Scalar_LNumber")
 
     instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_num")
@@ -47,7 +49,9 @@ def test_unwrap_restores_numeric_rvalue(tmp_path: Path):
     result = deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "x_val", ast)
     assert result is True
 
-    output = PrettyPrinter().print_file(ast, ast.file_nodes()[0].get_property("relativePath"))
+    output = PrettyPrinter().print_file(
+        ast, str(ast.file_nodes()[0].get_property("relativePath"))
+    )
     assert "__porifera_probe_num" not in output
     assert "42" in output
 
@@ -65,16 +69,26 @@ def test_unwrap_multiple_probes(tmp_path: Path):
     ast = parse_php(tmp_path, code='<?php\necho "hello";\necho "world";\n')
     strings = find_nodes(ast, "Scalar_String")
 
-    instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_multi")
+    instrumenter = ASTInstrumenter(
+        ast, StandardProbeStrategy(), "__porifera_probe_multi"
+    )
     instrumenter.instrument_node(strings[0].id, "first")
     instrumenter.instrument_node(strings[1].id, "second")
 
     deinstrumenter = ASTDeinstrumenter()
     exclude: set[str] = set()
-    assert deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "first", ast, exclude) is True
-    assert deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "second", ast, exclude) is True
+    assert (
+        deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "first", ast, exclude)
+        is True
+    )
+    assert (
+        deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "second", ast, exclude)
+        is True
+    )
 
-    output = PrettyPrinter().print_file(ast, ast.file_nodes()[0].get_property("relativePath"))
+    output = PrettyPrinter().print_file(
+        ast, str(ast.file_nodes()[0].get_property("relativePath"))
+    )
     assert "__porifera_probe_multi" not in output
     assert "hello" in output
     assert "world" in output
@@ -96,12 +110,15 @@ def test_unwrap_tracks_exclude_node_ids(tmp_path: Path):
 
 # --- _is_probe_call ---
 
+
 def test_is_probe_call_detects_instrumented_node(tmp_path: Path):
     """_is_probe_call returns True for an instrumented FuncCall."""
     ast = parse_php(tmp_path, code='<?php\necho "hello";\n')
     target = find_node(ast, "Scalar_String")
 
-    instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_detect")
+    instrumenter = ASTInstrumenter(
+        ast, StandardProbeStrategy(), "__porifera_probe_detect"
+    )
     instrumenter.instrument_node(target.id, "greeting")
 
     func_calls = find_nodes(ast, "Expr_FuncCall")
@@ -132,17 +149,20 @@ def test_is_probe_call_rejects_method_call(tmp_path: Path):
 
 # --- scan_and_unwrap ---
 
+
 def test_scan_and_unwrap_finds_instrumented_files(tmp_path: Path):
     """scan_and_unwrap processes PHP files with probes."""
     write_php(tmp_path, "app.php", '<?php\necho "hello";\n')
     ast = parse_php(tmp_path, "app.php", '<?php\necho "hello";\n')
     target = find_node(ast, "Scalar_String")
 
-    instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_scan")
+    instrumenter = ASTInstrumenter(
+        ast, StandardProbeStrategy(), "__porifera_probe_scan"
+    )
     instrumenter.instrument_node(target.id, "greeting")
 
     # Write instrumented code to disk
-    rel_path = ast.file_nodes()[0].get_property("relativePath")
+    rel_path = str(ast.file_nodes()[0].get_property("relativePath"))
     instrumented = PrettyPrinter().print_file(ast, rel_path)
     (tmp_path / "app.php").write_text(instrumented, encoding="utf-8")
 
@@ -158,14 +178,15 @@ def test_scan_and_unwrap_skips_non_probe_files(tmp_path: Path):
     write_php(tmp_path, "clean.php", '<?php\necho "clean";\n')
     deinstrumenter = ASTDeinstrumenter()
     modified = deinstrumenter.scan_and_unwrap(tmp_path)
-    assert modified == []
+    assert not modified
 
 
 # --- unwrap_probe_ast: OOP constructs ---
 
+
 def test_unwrap_restores_method_call(tmp_path: Path):
     """Instrument $obj->getStatus() rvalue, then unwrap restores original."""
-    ast = parse_php(tmp_path, code='<?php\n$result = $obj->getStatus();\n')
+    ast = parse_php(tmp_path, code="<?php\n$result = $obj->getStatus();\n")
     method_call = find_node(ast, "Expr_MethodCall")
 
     instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_mc")
@@ -175,14 +196,16 @@ def test_unwrap_restores_method_call(tmp_path: Path):
     result = deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "status", ast)
     assert result is True
 
-    output = PrettyPrinter().print_file(ast, ast.file_nodes()[0].get_property("relativePath"))
+    output = PrettyPrinter().print_file(
+        ast, str(ast.file_nodes()[0].get_property("relativePath"))
+    )
     assert "__porifera_probe_mc" not in output
     assert "getStatus" in output
 
 
 def test_unwrap_restores_static_method_call(tmp_path: Path):
     """Instrument Foo::create() rvalue, then unwrap restores original."""
-    ast = parse_php(tmp_path, code='<?php\n$obj = Foo::create();\n')
+    ast = parse_php(tmp_path, code="<?php\n$obj = Foo::create();\n")
     static_call = find_node(ast, "Expr_StaticCall")
 
     instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_sc")
@@ -192,7 +215,9 @@ def test_unwrap_restores_static_method_call(tmp_path: Path):
     result = deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "create", ast)
     assert result is True
 
-    output = PrettyPrinter().print_file(ast, ast.file_nodes()[0].get_property("relativePath"))
+    output = PrettyPrinter().print_file(
+        ast, str(ast.file_nodes()[0].get_property("relativePath"))
+    )
     assert "__porifera_probe_sc" not in output
     assert "Foo" in output
     assert "create" in output
@@ -200,7 +225,7 @@ def test_unwrap_restores_static_method_call(tmp_path: Path):
 
 def test_unwrap_restores_property_fetch(tmp_path: Path):
     """Instrument $obj->name in echo, then unwrap restores original."""
-    ast = parse_php(tmp_path, code='<?php\necho $obj->name;\n')
+    ast = parse_php(tmp_path, code="<?php\necho $obj->name;\n")
     prop = find_node(ast, "Expr_PropertyFetch")
 
     instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_pf")
@@ -210,14 +235,16 @@ def test_unwrap_restores_property_fetch(tmp_path: Path):
     result = deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "name_val", ast)
     assert result is True
 
-    output = PrettyPrinter().print_file(ast, ast.file_nodes()[0].get_property("relativePath"))
+    output = PrettyPrinter().print_file(
+        ast, str(ast.file_nodes()[0].get_property("relativePath"))
+    )
     assert "__porifera_probe_pf" not in output
     assert "name" in output
 
 
 def test_unwrap_restores_new_instance(tmp_path: Path):
     """Instrument new Foo() rvalue, then unwrap restores original."""
-    ast = parse_php(tmp_path, code='<?php\n$obj = new Foo();\n')
+    ast = parse_php(tmp_path, code="<?php\n$obj = new Foo();\n")
     new_expr = find_node(ast, "Expr_New")
 
     instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_nw")
@@ -227,7 +254,9 @@ def test_unwrap_restores_new_instance(tmp_path: Path):
     result = deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "new_val", ast)
     assert result is True
 
-    output = PrettyPrinter().print_file(ast, ast.file_nodes()[0].get_property("relativePath"))
+    output = PrettyPrinter().print_file(
+        ast, str(ast.file_nodes()[0].get_property("relativePath"))
+    )
     assert "__porifera_probe_nw" not in output
     assert "new" in output
     assert "Foo" in output
@@ -235,9 +264,10 @@ def test_unwrap_restores_new_instance(tmp_path: Path):
 
 # --- unwrap_probe_ast: complex expressions ---
 
+
 def test_unwrap_restores_null_coalesce(tmp_path: Path):
     """Instrument $a ?? $b, then unwrap restores original."""
-    ast = parse_php(tmp_path, code='<?php\n$result = $a ?? $b;\n')
+    ast = parse_php(tmp_path, code="<?php\n$result = $a ?? $b;\n")
     coalesce = find_node(ast, "Expr_BinaryOp_Coalesce")
 
     instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_nc")
@@ -247,14 +277,16 @@ def test_unwrap_restores_null_coalesce(tmp_path: Path):
     result = deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "coal_val", ast)
     assert result is True
 
-    output = PrettyPrinter().print_file(ast, ast.file_nodes()[0].get_property("relativePath"))
+    output = PrettyPrinter().print_file(
+        ast, str(ast.file_nodes()[0].get_property("relativePath"))
+    )
     assert "__porifera_probe_nc" not in output
     assert "??" in output
 
 
 def test_unwrap_restores_cast_expression(tmp_path: Path):
     """Instrument (int)$x, then unwrap restores original."""
-    ast = parse_php(tmp_path, code='<?php\n$val = (int)$x;\n')
+    ast = parse_php(tmp_path, code="<?php\n$val = (int)$x;\n")
     cast = find_node(ast, "Expr_Cast_Int")
 
     instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_ct")
@@ -264,14 +296,16 @@ def test_unwrap_restores_cast_expression(tmp_path: Path):
     result = deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "cast_val", ast)
     assert result is True
 
-    output = PrettyPrinter().print_file(ast, ast.file_nodes()[0].get_property("relativePath"))
+    output = PrettyPrinter().print_file(
+        ast, str(ast.file_nodes()[0].get_property("relativePath"))
+    )
     assert "__porifera_probe_ct" not in output
     assert "(int)" in output
 
 
 def test_unwrap_restores_instanceof(tmp_path: Path):
     """Instrument $x instanceof Foo, then unwrap restores original."""
-    ast = parse_php(tmp_path, code='<?php\n$check = $x instanceof Foo;\n')
+    ast = parse_php(tmp_path, code="<?php\n$check = $x instanceof Foo;\n")
     instanceof = find_node(ast, "Expr_Instanceof")
 
     instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_io")
@@ -281,14 +315,18 @@ def test_unwrap_restores_instanceof(tmp_path: Path):
     result = deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "inst_val", ast)
     assert result is True
 
-    output = PrettyPrinter().print_file(ast, ast.file_nodes()[0].get_property("relativePath"))
+    output = PrettyPrinter().print_file(
+        ast, str(ast.file_nodes()[0].get_property("relativePath"))
+    )
     assert "__porifera_probe_io" not in output
     assert "instanceof" in output
 
 
 def test_unwrap_restores_closure(tmp_path: Path):
     """Instrument closure, then unwrap restores original."""
-    ast = parse_php(tmp_path, code='<?php\narray_map(function($x) { return $x * 2; }, $arr);\n')
+    ast = parse_php(
+        tmp_path, code="<?php\narray_map(function($x) { return $x * 2; }, $arr);\n"
+    )
     closure = find_node(ast, "Expr_Closure")
 
     instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_cl")
@@ -298,14 +336,16 @@ def test_unwrap_restores_closure(tmp_path: Path):
     result = deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "cls_val", ast)
     assert result is True
 
-    output = PrettyPrinter().print_file(ast, ast.file_nodes()[0].get_property("relativePath"))
+    output = PrettyPrinter().print_file(
+        ast, str(ast.file_nodes()[0].get_property("relativePath"))
+    )
     assert "__porifera_probe_cl" not in output
     assert "function" in output
 
 
 def test_unwrap_restores_arrow_function(tmp_path: Path):
     """Instrument arrow function, then unwrap restores original."""
-    ast = parse_php(tmp_path, code='<?php\n$fn = fn($x) => $x + 1;\n')
+    ast = parse_php(tmp_path, code="<?php\n$fn = fn($x) => $x + 1;\n")
     arrow = find_node(ast, "Expr_ArrowFunction")
 
     instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_af")
@@ -315,16 +355,26 @@ def test_unwrap_restores_arrow_function(tmp_path: Path):
     result = deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "arrow_val", ast)
     assert result is True
 
-    output = PrettyPrinter().print_file(ast, ast.file_nodes()[0].get_property("relativePath"))
+    output = PrettyPrinter().print_file(
+        ast, str(ast.file_nodes()[0].get_property("relativePath"))
+    )
     assert "__porifera_probe_af" not in output
     assert "fn" in output
 
 
 # --- unwrap_probe_ast: complex structures ---
 
+
 def test_unwrap_restores_class_method_expression(tmp_path: Path):
     """Instrument expression inside class method, then unwrap restores."""
-    code = '<?php\nclass Calc {\n    public function add($a, $b) {\n        return $a + $b;\n    }\n}\n'
+    code = (
+        "<?php\n"
+        "class Calc {\n"
+        "    public function add($a, $b) {\n"
+        "        return $a + $b;\n"
+        "    }\n"
+        "}\n"
+    )
     ast = parse_php(tmp_path, code=code)
     plus = find_node(ast, "Expr_BinaryOp_Plus")
 
@@ -335,14 +385,24 @@ def test_unwrap_restores_class_method_expression(tmp_path: Path):
     result = deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "add_op", ast)
     assert result is True
 
-    output = PrettyPrinter().print_file(ast, ast.file_nodes()[0].get_property("relativePath"))
+    output = PrettyPrinter().print_file(
+        ast, str(ast.file_nodes()[0].get_property("relativePath"))
+    )
     assert "__porifera_probe_cm" not in output
     assert "class Calc" in output
 
 
 def test_unwrap_multiple_probes_complex_code(tmp_path: Path):
     """Instrument multiple targets in complex code, unwrap all."""
-    code = '<?php\nclass Svc {\n    public function run($x) {\n        $a = $x + 1;\n        return $a * 2;\n    }\n}\n'
+    code = (
+        "<?php\n"
+        "class Svc {\n"
+        "    public function run($x) {\n"
+        "        $a = $x + 1;\n"
+        "        return $a * 2;\n"
+        "    }\n"
+        "}\n"
+    )
     ast = parse_php(tmp_path, code=code)
     plus = find_node(ast, "Expr_BinaryOp_Plus")
     mul = find_node(ast, "Expr_BinaryOp_Mul")
@@ -353,15 +413,24 @@ def test_unwrap_multiple_probes_complex_code(tmp_path: Path):
 
     deinstrumenter = ASTDeinstrumenter()
     exclude: set[str] = set()
-    assert deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "add_op", ast, exclude) is True
-    assert deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "mul_op", ast, exclude) is True
+    assert (
+        deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "add_op", ast, exclude)
+        is True
+    )
+    assert (
+        deinstrumenter.unwrap_probe_ast(tmp_path / "test.php", "mul_op", ast, exclude)
+        is True
+    )
 
-    output = PrettyPrinter().print_file(ast, ast.file_nodes()[0].get_property("relativePath"))
+    output = PrettyPrinter().print_file(
+        ast, str(ast.file_nodes()[0].get_property("relativePath"))
+    )
     assert "__porifera_probe_mc" not in output
     assert "class Svc" in output
 
 
 # --- _is_probe_call: complex scenarios ---
+
 
 def test_is_probe_call_rejects_static_method_call(tmp_path: Path):
     """_is_probe_call returns False for static method calls."""
@@ -385,12 +454,15 @@ def test_is_probe_call_distinguishes_probe_among_normal_calls(tmp_path: Path):
     func_calls = find_nodes(ast, "Expr_FuncCall")
     deinstrumenter = ASTDeinstrumenter()
     probe_calls = [fc for fc in func_calls if deinstrumenter._is_probe_call(ast, fc)]
-    non_probe_calls = [fc for fc in func_calls if not deinstrumenter._is_probe_call(ast, fc)]
+    non_probe_calls = [
+        fc for fc in func_calls if not deinstrumenter._is_probe_call(ast, fc)
+    ]
     assert len(probe_calls) == 1
     assert len(non_probe_calls) >= 1
 
 
 # --- scan_and_unwrap: complex scenarios ---
+
 
 def test_scan_and_unwrap_multiple_files(tmp_path: Path):
     """scan_and_unwrap processes multiple instrumented PHP files."""
@@ -398,9 +470,11 @@ def test_scan_and_unwrap_multiple_files(tmp_path: Path):
         write_php(tmp_path, name, f'<?php\necho "{name}";\n')
         ast = parse_php(tmp_path, name, f'<?php\necho "{name}";\n')
         target = find_node(ast, "Scalar_String")
-        instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_mf")
+        instrumenter = ASTInstrumenter(
+            ast, StandardProbeStrategy(), "__porifera_probe_mf"
+        )
         instrumenter.instrument_node(target.id, f"key_{name}")
-        rel_path = ast.file_nodes()[0].get_property("relativePath")
+        rel_path = str(ast.file_nodes()[0].get_property("relativePath"))
         instrumented = PrettyPrinter().print_file(ast, rel_path)
         (tmp_path / name).write_text(instrumented, encoding="utf-8")
 
@@ -420,7 +494,7 @@ def test_scan_and_unwrap_mixed_clean_and_instrumented(tmp_path: Path):
     target = find_node(ast, "Scalar_String")
     instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_mix")
     instrumenter.instrument_node(target.id, "dirty_key")
-    rel_path = ast.file_nodes()[0].get_property("relativePath")
+    rel_path = str(ast.file_nodes()[0].get_property("relativePath"))
     instrumented = PrettyPrinter().print_file(ast, rel_path)
     (tmp_path / "dirty.php").write_text(instrumented, encoding="utf-8")
 
@@ -432,7 +506,14 @@ def test_scan_and_unwrap_mixed_clean_and_instrumented(tmp_path: Path):
 
 def test_scan_and_unwrap_complex_class_code(tmp_path: Path):
     """scan_and_unwrap handles class code with multiple probes."""
-    code = '<?php\nclass User {\n    public function getName() {\n        return $this->first . " " . $this->last;\n    }\n}\n'
+    code = (
+        "<?php\n"
+        "class User {\n"
+        "    public function getName() {\n"
+        '        return $this->first . " " . $this->last;\n'
+        "    }\n"
+        "}\n"
+    )
     write_php(tmp_path, "user.php", code)
     ast = parse_php(tmp_path, "user.php", code)
     concat_nodes = find_nodes(ast, "Expr_BinaryOp_Concat")
@@ -440,7 +521,7 @@ def test_scan_and_unwrap_complex_class_code(tmp_path: Path):
 
     instrumenter = ASTInstrumenter(ast, StandardProbeStrategy(), "__porifera_probe_usr")
     instrumenter.instrument_node(concat_nodes[0].id, "name_concat")
-    rel_path = ast.file_nodes()[0].get_property("relativePath")
+    rel_path = str(ast.file_nodes()[0].get_property("relativePath"))
     instrumented = PrettyPrinter().print_file(ast, rel_path)
     (tmp_path / "user.php").write_text(instrumented, encoding="utf-8")
 

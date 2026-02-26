@@ -27,7 +27,9 @@ def write_php(directory: Path, filename: str, code: str) -> Path:
     return php_file
 
 
-def parse_php(directory: Path, filename: str = "test.php", code: str = "<?php\n") -> AST:
+def parse_php(
+    directory: Path, filename: str = "test.php", code: str = "<?php\n"
+) -> AST:
     """Write PHP code and parse it, returning the AST.
 
     Args:
