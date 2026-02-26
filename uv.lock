@@ -1,0 +1,61 @@
+version = 1
+revision = 3
+requires-python = ">=3.11, <3.13"
+
+[[package]]
+name = "cpg2py"
+version = "1.2.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d7/7b/2182df91f284f2462059f0efda97e504ef807334fc42216eb45d2b0160a2/cpg2py-1.2.2.tar.gz", hash = "sha256:743f57746226adfa01b1ed5625158a1e0b08b8ac4dd43f9aebbaea4ac6a5c68d", size = 25059, upload-time = "2026-02-08T21:25:36.424Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/74/5d/3274b07ad4b962d5d415c4d31e9611658c7d5a65688858663b501e02c90d/cpg2py-1.2.2-py3-none-any.whl", hash = "sha256:fb008d8e0495a76a18103f8b6285b70158962f4b2e0fb90368b5201ef26083c9", size = 15954, upload-time = "2026-02-08T21:25:35.129Z" },
+]
+
+[[package]]
+name = "lemur"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "php-parser-py" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "php-parser-py", specifier = ">=1.2.1" }]
+
+[[package]]
+name = "php-parser-py"
+version = "1.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cpg2py" },
+    { name = "static-php-py" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/17/58/c9f9f85521184cb77c2453d48ca514e62d6688c8b0d33c62bcf84857b328/php_parser_py-1.2.1.tar.gz", hash = "sha256:0370c46317e41779b58eaf8f5af3b0756a0ba70390d254ee45265517a0379e3b", size = 309080, upload-time = "2026-02-11T21:33:31.613Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c6/36/6cdc22eab18fece6e383706711fb592349520c2b936f5ae90f3be9bc57ea/php_parser_py-1.2.1-py3-none-any.whl", hash = "sha256:b9b1dbca7d1f857068d6f2bcdf6a17cafbaa850b3e77f73b9b3bc9d808aabefa", size = 312510, upload-time = "2026-02-11T21:33:30.524Z" },
+]
+
+[[package]]
+name = "platformdirs"
+version = "4.9.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1b/04/fea538adf7dbbd6d186f551d595961e564a3b6715bdf276b477460858672/platformdirs-4.9.2.tar.gz", hash = "sha256:9a33809944b9db043ad67ca0db94b14bf452cc6aeaac46a88ea55b26e2e9d291", size = 28394, upload-time = "2026-02-16T03:56:10.574Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/48/31/05e764397056194206169869b50cf2fee4dbbbc71b344705b9c0d878d4d8/platformdirs-4.9.2-py3-none-any.whl", hash = "sha256:9170634f126f8efdae22fb58ae8a0eaa86f38365bc57897a6c4f781d1f5875bd", size = 21168, upload-time = "2026-02-16T03:56:08.891Z" },
+]
+
+[[package]]
+name = "static-php-py"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "platformdirs" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/30/a6/c0d896f46668eab321a5b300d1878868ae9a382f360d283e0f2b5000fcab/static_php_py-0.1.0-py3-none-any.whl", hash = "sha256:7b2601b5cbc3051f24eb69766a1a0b6042d919758afb4a30bb345867ca019076", size = 26859, upload-time = "2026-01-18T05:00:05.822Z" },
+    { url = "https://files.pythonhosted.org/packages/98/6e/f2cdc2b011e16c9cadf9976544f86b37c501e55463eab44cb73d8a527c49/static_php_py-0.1.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:2c4110c83bfcc29e591ffcac78b4d8fcabb1fadd4b6d76c7156614aa41eb4acf", size = 4691318, upload-time = "2026-01-18T05:00:07.817Z" },
+    { url = "https://files.pythonhosted.org/packages/35/32/d748315feb8ae0a50bf80a4a8a43e7202e744cf0b2c7d6efd5dc20b63643/static_php_py-0.1.0-py3-none-macosx_11_0_x86_64.whl", hash = "sha256:090586eb3ee36ea2df73bb26c8d3456c8c025f48a6946ff455acd22a1dc4ffd5", size = 4832094, upload-time = "2026-01-18T05:00:10.435Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/84/abba3df6e07707671b9776142a24324b681801be9b08e5700cf1f6163cb1/static_php_py-0.1.0-py3-none-manylinux_2_17_aarch64.whl", hash = "sha256:242158f93e52dd9f716ec8cbd4d09d5a5637784cc3c5f173b6708d51f80d11c8", size = 5001444, upload-time = "2026-01-18T05:00:12.178Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/55/a6c414728e9e681d9e6b74c7db75cc1e7c9d66222d7fc94334c4648293e6/static_php_py-0.1.0-py3-none-manylinux_2_17_x86_64.whl", hash = "sha256:d84b8cf3d1f985e24d97bc12b93839ba9f552f933b88e782b7f78255cf60e438", size = 4949853, upload-time = "2026-01-18T05:00:16.304Z" },
+    { url = "https://files.pythonhosted.org/packages/fd/45/cdbdb3938053ee1d49b236d71aca330fb450fcc2ac0d62bb10f1fce05036/static_php_py-0.1.0-py3-none-win_amd64.whl", hash = "sha256:fa5671e6ec6893e83fd9609726c54099b8fdca48ef0570f148e322baac74fe23", size = 5057719, upload-time = "2026-01-18T05:00:17.879Z" },
+]

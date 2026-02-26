@@ -1,0 +1,13 @@
+[project]
+name = "lemur"
+version = "0.1.0"
+description = "BELUGA LEMUR instrumentation module"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "php-parser-py>=1.2.1",
+]
+
+[tool.uv]
+# uv will recognize this project via pyproject.toml; keep this table for
+# project-specific uv settings in future if needed.
