@@ -158,8 +158,8 @@ Structural AST mutations use the `Modifier` class (php-parser-py >=1.2.2). The A
 
 ### Probe Naming and Identification
 
-- `_PROBE_FUNC_PREFIX = "__lemur_probe_"` — module constant in `_instrumenter.py`.
-- Probe function names are auto-generated: `f"{_PROBE_FUNC_PREFIX}{uuid.uuid4().hex[:8]}"` (e.g. `__lemur_probe_a1b2c3d4`).
+- `_PROBE_FUNC_PREFIX = "__porifera_probe_"` — module constant in `_instrumenter.py`.
+- Probe function names are auto-generated: `f"{_PROBE_FUNC_PREFIX}{uuid.uuid4().hex[:8]}"` (e.g. `__porifera_probe_a1b2c3d4`).
 - Name is generated once per `InstrumentationManager` session; passed to `ASTInstrumenter`. Strategies never see it.
 - Deinstrumentation matches by prefix (`parts[0].startswith(_PROBE_FUNC_PREFIX)`) — no need to persist or know the exact name.
 - Fast-path text filter in scan mode: `_PROBE_FUNC_PREFIX not in content`.
@@ -197,7 +197,7 @@ Structural AST mutations use the `Modifier` class (php-parser-py >=1.2.2). The A
 
 - No constructor params; identifies probes by `_PROBE_FUNC_PREFIX` prefix matching.
 - `_is_probe_call` checks `parts[0].startswith(_PROBE_FUNC_PREFIX)` instead of exact name match.
-- Probe call structure: `Expr_FuncCall` -> name (Name with `parts=[__lemur_probe_XXXXXXXX]`), args[0] (Arg -> Scalar_String with expr_key), args[1] (Arg -> original expression).
+- Probe call structure: `Expr_FuncCall` -> name (Name with `parts=[__porifera_probe_XXXXXXXX]`), args[0] (Arg -> Scalar_String with expr_key), args[1] (Arg -> original expression).
 - `_process_php_file_for_unwrap` text search uses `_PROBE_FUNC_PREFIX` for the fast-path check.
 - `scan_and_unwrap` parses each file independently with `Parser().parse_file()`; `PrettyPrinter().print(ast)` result is a single-entry dict for single-file ASTs.
 - `unwrap_probe_ast` takes `expr_key: str` directly (not a TypedDict entry); modifies AST in place.
@@ -209,7 +209,7 @@ Structural AST mutations use the `Modifier` class (php-parser-py >=1.2.2). The A
 - Registry stores `List[str]` (expr_keys) per file — no TypedDict, no unused fields.
 - File regeneration uses `PrettyPrinter().print_file(ast, relative_path)` which returns a string; handled by Manager after all nodes in a file are instrumented.
 - `_resolve_project_root`: tries `project_ast.project_node()` first, falls back to first file node's `absolutePath`. Result stored as private `_project_root`.
-- `_RUNTIME_HELPER_NAME = "lemur_runtime.php"` — module constant in `_manager.py`; not configurable.
-- `_inject_require` adds `require_once __DIR__ . '/lemur_runtime.php';` via text replacement after `<?php` tag.
+- `_RUNTIME_HELPER_NAME = "porifera_runtime.php"` — module constant in `_manager.py`; not configurable.
+- `_inject_require` adds `require_once __DIR__ . '/porifera_runtime.php';` via text replacement after `<?php` tag.
 - `_remove_require` removes the `require_once` line during deinstrumentation; called after AST-based probe unwrap since PrettyPrinter re-emits the `require_once` from the parsed AST.
-- Registry mode: precise restoration using `.lemur_registry.json`. Scan mode: fail-safe by scanning all `.php` files.
+- Registry mode: precise restoration using `.porifera_registry.json`. Scan mode: fail-safe by scanning all `.php` files.
