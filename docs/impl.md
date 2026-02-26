@@ -6,7 +6,9 @@
 
 **[php-parser-py]** `AST.project_node() -> Node` — returns project root node; raises `KeyError` if root missing.
 
-**[php-parser-py]** `AST.file_nodes() -> list[Node]` — sorted file nodes; each has `get_property("absolutePath")` and `get_property("relativePath")`.
+**[php-parser-py]** `AST.files() -> list[Node]` — list of all File nodes; each has `get_property("absolutePath")` and `get_property("relativePath")`.
+
+**[php-parser-py]** `AST.get_file(node_id) -> Node` — get the File node containing a specific node.
 
 **[php-parser-py]** `AST.node(id) -> Node` — get node by ID; raises `KeyError` if not found.
 
@@ -36,22 +38,27 @@
 
 **[php-parser-py]** `Node.get_property("propName") -> Any` — generic property lookup; works for JSON properties including "absolutePath", "relativePath", "nodeType", "parts", "value".
 
+**[php-parser-py]** `Node.set_property(key, value)` — set a single property on the node.
+
+**[php-parser-py]** `Node.set_properties(props: dict)` — set multiple properties on the node at once.
+
 ### Edge API
 
 **[php-parser-py]** `Edge.from_nid -> str`, `Edge.to_nid -> str`, `Edge.type -> str` — edge endpoints and type.
 
 **[php-parser-py]** `Edge.get_property("field") -> Any`, `Edge.get("field") -> Any` — edge metadata; PARENT_OF edges have "field" (str) and optionally "index" (int) properties. These are NOT direct attributes on the Edge class.
 
-### Graph Mutation (via `ast.storage`)
+### Graph Mutation (via `Modifier`)
 
-Low-level graph mutation accessed through `ast.storage`. Used for AST node creation and edge manipulation during instrumentation/deinstrumentation. No higher-level mutation API exists in php-parser-py.
+Structural AST mutations use the `Modifier` class (php-parser-py >=1.2.2). The AST query interface remains read-only; all mutations go through `Modifier`.
 
-- `ast.storage.add_node(node_id: str)` — add a new node
-- `ast.storage.set_node_props(node_id, props: dict)` — set node properties (e.g. `{"nodeType": "Name", "parts": ["func"], "startLine": 1, "endLine": 1}`)
-- `ast.storage.add_edge((from_id, to_id, edge_type))` — add an edge; edge_type is typically `"PARENT_OF"`
-- `ast.storage.set_edge_props((from_id, to_id, edge_type), props: dict)` — set edge properties (e.g. `{"field": "args", "index": 0}`)
-- `ast.storage.get_edge_props((from_id, to_id, edge_type)) -> dict` — get all edge properties as dict; use only when all properties are needed (e.g. for re-parenting). Prefer `edge.get("field")` for individual property reads.
-- `ast.storage.remove_edge((from_id, to_id, edge_type))` — remove an edge
+- `Modifier(ast)` — constructor; wraps an AST for mutation
+- `modifier.add_node(node_id, node_type, **props) -> Node` — add a new node with type and properties; returns the created Node
+- `modifier.add_edge(from_id, to_id, field=..., index=...) -> None` — add a PARENT_OF edge with field and optional index
+- `modifier.remove_edge(from_id, to_id) -> None` — remove a PARENT_OF edge
+- `modifier.remove_node(node_id) -> None` — remove a node and all connected edges
+- `modifier.ast -> AST` — access the underlying AST after modifications
+- `node.set_property(key, value)` / `node.set_properties(dict)` — modify node properties directly via Node API (not through Modifier)
 
 ### Code Generation & Parsing
 
@@ -63,7 +70,7 @@ Low-level graph mutation accessed through `ast.storage`. Used for AST node creat
 
 ## Libraries
 
-- **php-parser-py>=1.2.1** — Python wrapper for nikic/PHP-Parser; AST graph with project/file/statement node hierarchy; provides traversal, querying, and graph mutation via `ast.storage`.
+- **php-parser-py>=1.2.2** — Python wrapper for nikic/PHP-Parser; AST graph with project/file/statement node hierarchy; provides traversal, querying, node property management, and structural mutation via `Modifier` class.
 
 ## Developer Instructions
 
@@ -71,12 +78,15 @@ Low-level graph mutation accessed through `ast.storage`. Used for AST node creat
   - `ast.prev(node)` for parent lookup instead of `ast.edges(lambda e: e.to_nid == node.id and ...)`
   - `ast.succ(node)` for children instead of `ast.edges(lambda e: e.from_nid == node.id and ...)`
   - `ast.edge(from_id, to_id, "PARENT_OF")` for direct edge lookup
-- Use `node.get_property("key")` and `edge.get("key")` for property reads; reserve `ast.storage` for mutations only.
+  - `ast.get_file(node_id)` for resolving file membership instead of walking ancestors manually
+- Use `node.get_property("key")` and `edge.get("key")` for property reads.
+- Use `node.set_property(key, value)` or `node.set_properties(dict)` for node property writes.
+- Use `Modifier(ast)` for structural mutations (add_node, add_edge, remove_edge, remove_node).
 - Edge properties "field" and "index" are accessed via `edge.get_property("field")` or `edge.get("field")`; they are NOT direct attributes on the Edge class.
 - `PrettyPrinter().print(ast)` always returns `dict[str, str]`; for single-file writes, extract the value with `next(iter(result.values()))` or use `print_file()`.
 - Node line numbers: prefer `node.start_line` / `node.end_line` (typed int properties) over `node.get_property("startLine")`.
 - `AST.project_node()` is always a method; raises `KeyError` if root missing. No need for `getattr/callable` guards.
-- Query Context7 `/jhu-seclab-beluga/php-parser-py` for API reference and node structures.
+- Reference: [cpg2py traversal API](https://github.com/jhu-seclab-beluga/php-parser-py/blob/main/docs/libs/cpg2py_traversal.md)
 
 ## Design-Specific
 
@@ -93,7 +103,7 @@ Low-level graph mutation accessed through `ast.storage`. Used for AST node creat
 
 ### Unsafe Wrap Contexts
 
-`_UNSAFE_WRAP_CONTEXTS` is a module-level `frozenset[tuple[str, str]]` in `_ast_operations.py`, mapping `(parent_node_type, edge_field)` pairs. Module-level `_is_safe_to_wrap(ast, node)` checks against this set; used by both `StandardProbeStrategy` and `ElevatingProbeStrategy`.
+`_UNSAFE_WRAP_CONTEXTS` is a module-level `frozenset[tuple[str, str]]` in `_strategies.py`, mapping `(parent_node_type, edge_field)` pairs. Module-level `_is_safe_to_wrap(ast, node)` checks against this set; used by both `StandardProbeStrategy` and `ElevatingProbeStrategy`.
 
 **Category A — Lvalue contexts** (wrapping converts lvalue to rvalue -> PHP error):
 
@@ -148,7 +158,7 @@ Low-level graph mutation accessed through `ast.storage`. Used for AST node creat
 
 ### Probe Naming and Identification
 
-- `_PROBE_FUNC_PREFIX = "__lemur_probe_"` — module constant in `_ast_operations.py`.
+- `_PROBE_FUNC_PREFIX = "__lemur_probe_"` — module constant in `_instrumenter.py`.
 - Probe function names are auto-generated: `f"{_PROBE_FUNC_PREFIX}{uuid.uuid4().hex[:8]}"` (e.g. `__lemur_probe_a1b2c3d4`).
 - Name is generated once per `InstrumentationManager` session; passed to `ASTInstrumenter`. Strategies never see it.
 - Deinstrumentation matches by prefix (`parts[0].startswith(_PROBE_FUNC_PREFIX)`) — no need to persist or know the exact name.
@@ -165,8 +175,8 @@ Low-level graph mutation accessed through `ast.storage`. Used for AST node creat
 
 - Owns `_probe_func_name` (from Manager) and `_wrap_node()` logic. Uses `ProbeStrategy` only for target selection.
 - `instrument_node()` calls `_strategy.select_wrap_target()` → if None, logs warning and returns False → otherwise calls `_wrap_node()`, adds to `_wrapped_nodes`, returns True.
-- `_wrap_node()` creates probe call AST nodes via `ast.storage` mutation methods with "startLine"/"endLine" properties cloned from the target node.
-- `_wrap_node()` parent edge replacement: find parent via `ast.prev(node)`, get edge via `ast.edge()`, save its props, remove it, re-parent target under new arg node, attach func_call node to original parent with original edge props.
+- `_wrap_node()` creates probe call AST nodes via `Modifier.add_node()` with properties cloned from the target node.
+- `_wrap_node()` parent edge replacement: find parent via `ast.prev(node)`, get edge via `ast.edge()`, save props via `edge.get()`, remove it, re-parent target under new arg node, attach func_call node to original parent with original edge props.
 - `_is_safe_to_wrap` is a module-level function; finds parent via `ast.prev(node)`, gets edge field via `edge.get("field")`, checks `(parent_type, edge_field)` against `_UNSAFE_WRAP_CONTEXTS`.
 - `_UNSAFE_WRAP_CONTEXTS` contains Category A (lvalue) and Category C (reference) entries only. `Stmt_For.init` and `Stmt_For.loop` are NOT in the unsafe set.
 - Tracks `_wrapped_nodes: set` to prevent double-wrapping when multiple targets elevate to the same ancestor.
