@@ -1,204 +1,97 @@
 """Shared test fixtures for lemur tests.
 
-Provides fake objects mimicking php-parser-py API at the system boundary.
+Provides helpers for creating real PHP files and parsing them with php-parser-py.
 """
 
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
-from unittest.mock import MagicMock
+
+import pytest
+from php_parser_py import AST, Node, Parser
 
 
-class FakeEdge:
-    """Mimics php-parser-py Edge API."""
+def write_php(directory: Path, filename: str, code: str) -> Path:
+    """Write PHP code to a file in the given directory.
 
-    def __init__(self, from_nid: str, to_nid: str, edge_type: str = "PARENT_OF", **props: object) -> None:
-        self.from_nid = from_nid
-        self.to_nid = to_nid
-        self.type = edge_type
-        self._props = props
+    Args:
+        directory: Directory to write the file in.
+        filename: Name of the PHP file.
+        code: PHP source code (should start with <?php).
 
-    def get(self, key: str) -> object:
-        return self._props.get(key)
-
-    def get_property(self, key: str) -> object:
-        return self._props.get(key)
-
-
-class FakeNode:
-    """Mimics php-parser-py Node API."""
-
-    def __init__(self, node_id: str, node_type: str, **props: object) -> None:
-        self.id = node_id
-        self.node_type = node_type
-        self._props: dict[str, object] = {"nodeType": node_type, **props}
-        self.start_line: int = int(props.get("startLine", 1))
-        self.end_line: int = int(props.get("endLine", 1))
-
-    def get_property(self, key: str, default: object = None) -> object:
-        return self._props.get(key, default)
-
-    def set_property(self, key: str, value: object) -> None:
-        self._props[key] = value
-
-    def set_properties(self, props: dict[str, object]) -> None:
-        self._props.update(props)
-
-    def __getitem__(self, key: str) -> object:
-        return self._props[key]
+    Returns:
+        Path to the created file.
+    """
+    php_file = directory / filename
+    php_file.write_text(code, encoding="utf-8")
+    return php_file
 
 
-class FakeModifier:
-    """Mimics php-parser-py Modifier API."""
+def parse_php(directory: Path, filename: str = "test.php", code: str = "<?php\n") -> AST:
+    """Write PHP code and parse it, returning the AST.
 
-    def __init__(self, ast: FakeAST) -> None:
-        self._ast = ast
-        self.ast = ast
+    Args:
+        directory: Directory for the temp file.
+        filename: Name of the PHP file.
+        code: PHP source code.
 
-    def add_node(self, node_id: str, node_type: str, **props: object) -> FakeNode:
-        node = FakeNode(node_id, node_type, **props)
-        self._ast._nodes[node_id] = node
-        return node
-
-    def add_edge(self, from_id: str, to_id: str, field: str = "", index: int | None = None, edge_type: str = "PARENT_OF") -> None:
-        props: dict[str, object] = {"field": field}
-        if index is not None:
-            props["index"] = index
-        edge = FakeEdge(from_id, to_id, edge_type, **props)
-        self._ast._edges.append(edge)
-
-    def remove_edge(self, from_id: str, to_id: str, edge_type: str = "PARENT_OF") -> None:
-        self._ast._edges = [
-            e for e in self._ast._edges
-            if not (e.from_nid == from_id and e.to_nid == to_id and e.type == edge_type)
-        ]
-
-    def remove_node(self, node_id: str) -> None:
-        self._ast._nodes.pop(node_id, None)
-        self._ast._edges = [
-            e for e in self._ast._edges
-            if e.from_nid != node_id and e.to_nid != node_id
-        ]
+    Returns:
+        Parsed AST.
+    """
+    write_php(directory, filename, code)
+    return Parser().parse_file(str(directory / filename))
 
 
-class FakeAST:
-    """Mimics php-parser-py AST API."""
+def find_node(ast: AST, node_type: str, **props: object) -> Node:
+    """Find the first node matching type and optional property values.
 
-    def __init__(self) -> None:
-        self._nodes: dict[str, FakeNode] = {}
-        self._edges: list[FakeEdge] = []
-        self._project: FakeNode | None = None
-        self._files: list[FakeNode] = []
+    Args:
+        ast: Parsed AST.
+        node_type: Node type to match (e.g. "Expr_Assign").
+        **props: Optional property key-value pairs to match.
 
-    def node(self, node_id: str) -> FakeNode:
-        if node_id not in self._nodes:
-            raise KeyError(f"Node {node_id} not found")
-        return self._nodes[node_id]
+    Returns:
+        The matching node.
 
-    def nodes(self, pred: object = None) -> list[FakeNode]:
-        all_nodes = list(self._nodes.values())
-        if pred is not None:
-            return [n for n in all_nodes if pred(n)]
-        return all_nodes
-
-    def first_node(self, pred: object) -> FakeNode | None:
-        for n in self._nodes.values():
-            if pred(n):
-                return n
-        return None
-
-    def prev(self, node: FakeNode) -> list[FakeNode]:
-        """Return parent nodes (incoming PARENT_OF edges)."""
-        parents = []
-        for e in self._edges:
-            if e.to_nid == node.id and e.type == "PARENT_OF":
-                if e.from_nid in self._nodes:
-                    parents.append(self._nodes[e.from_nid])
-        return parents
-
-    def succ(self, node: FakeNode) -> list[FakeNode]:
-        """Return child nodes (outgoing PARENT_OF edges)."""
-        children = []
-        for e in self._edges:
-            if e.from_nid == node.id and e.type == "PARENT_OF":
-                if e.to_nid in self._nodes:
-                    children.append(self._nodes[e.to_nid])
-        return children
-
-    def edge(self, from_id: str, to_id: str, edge_type: str) -> FakeEdge | None:
-        for e in self._edges:
-            if e.from_nid == from_id and e.to_nid == to_id and e.type == edge_type:
-                return e
-        return None
-
-    def edges(self, pred: object = None) -> list[FakeEdge]:
-        if pred is not None:
-            return [e for e in self._edges if pred(e)]
-        return list(self._edges)
-
-    def ancestors(self, node: FakeNode) -> list[FakeNode]:
-        """BFS ancestors."""
-        visited: set[str] = set()
-        result: list[FakeNode] = []
-        queue = list(self.prev(node))
-        while queue:
-            current = queue.pop(0)
-            if current.id in visited:
-                continue
-            visited.add(current.id)
-            result.append(current)
-            queue.extend(self.prev(current))
-        return result
-
-    def descendants(self, node: FakeNode) -> list[FakeNode]:
-        """BFS descendants."""
-        visited: set[str] = set()
-        result: list[FakeNode] = []
-        queue = list(self.succ(node))
-        while queue:
-            current = queue.pop(0)
-            if current.id in visited:
-                continue
-            visited.add(current.id)
-            result.append(current)
-            queue.extend(self.succ(current))
-        return result
-
-    def project_node(self) -> FakeNode:
-        if self._project is None:
-            raise KeyError("No project node")
-        return self._project
-
-    def files(self) -> list[FakeNode]:
-        return self._files
-
-    def get_file(self, node_id: str) -> FakeNode:
-        """Find File node containing node_id by walking ancestors."""
-        node = self.node(node_id)
-        for ancestor in self.ancestors(node):
-            if ancestor.node_type == "File":
-                return ancestor
-        raise KeyError(f"No File node found for {node_id}")
+    Raises:
+        ValueError: If no matching node is found.
+    """
+    for node in ast.nodes():
+        if node.node_type != node_type:
+            continue
+        if all(node.get_property(k) == v for k, v in props.items()):
+            return node
+    raise ValueError(f"No {node_type} node found with props {props}")
 
 
-def build_parent_child(
-    ast: FakeAST,
-    parent: FakeNode,
-    child: FakeNode,
-    field: str,
-    index: int | None = None,
-) -> FakeEdge:
-    """Wire parent -> child with a PARENT_OF edge in FakeAST."""
-    props: dict[str, object] = {"field": field}
-    if index is not None:
-        props["index"] = index
-    edge = FakeEdge(parent.id, child.id, "PARENT_OF", **props)
-    ast._edges.append(edge)
-    return edge
+def find_nodes(ast: AST, node_type: str) -> list[Node]:
+    """Find all nodes of a given type.
+
+    Args:
+        ast: Parsed AST.
+        node_type: Node type to match.
+
+    Returns:
+        List of matching nodes.
+    """
+    return [n for n in ast.nodes() if n.node_type == node_type]
+
+
+def find_child(ast: AST, parent: Node, field: str) -> Node | None:
+    """Find a child node by edge field name.
+
+    Args:
+        ast: Parsed AST.
+        parent: Parent node.
+        field: Edge field to match.
+
+    Returns:
+        Child node, or None if not found.
+    """
+    return next(ast.succ(parent, lambda e: e.get("field") == field), None)
 
 
 @pytest.fixture()
-def fake_ast() -> FakeAST:
-    """Return an empty FakeAST."""
-    return FakeAST()
+def php_dir(tmp_path: Path) -> Path:
+    """Return a temporary directory for PHP test files."""
+    return tmp_path
