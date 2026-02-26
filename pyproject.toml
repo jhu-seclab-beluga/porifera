@@ -1,7 +1,7 @@
 [project]
-name = "lemur"
+name = "porifera"
 version = "0.1.0"
-description = "BELUGA LEMUR instrumentation module"
+description = "PORIFERA: PHP code rewriting instrumentation for expression in AST"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
