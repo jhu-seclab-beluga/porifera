@@ -1,7 +1,7 @@
 <?php
 function {{PROBE_FUNC_NAME}}($key, $value) {
     $data_file = {{OUTPUT_DIR}} . '/.porifera_data_{{TIMESTAMP}}.jsonl';
-    $entry = json_encode(['key' => $key, 'value' => $value, 'ts' => microtime(true)]);
+    $entry = json_encode(['key' => $key, 'value' => $value, 'value_type' => gettype($value), 'ts' => microtime(true)]);
     $fp = @fopen($data_file, 'a');
     if ($fp) {
         if (flock($fp, LOCK_EX)) {

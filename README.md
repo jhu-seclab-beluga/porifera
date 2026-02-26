@@ -52,7 +52,7 @@ becomes:
 $row = __porifera_probe_a1b2c3d4("user_query", $db->query($sql));
 ```
 
-The probe returns the original value transparently and logs it to `.porifera_data_<timestamp>.jsonl`. Each instrumentation run produces a unique timestamped file to avoid overwriting previous data.
+The probe returns the original value transparently and logs it to `.porifera_data_<timestamp>.jsonl` with `key`, `value`, `value_type`, and `ts` fields. Each instrumentation run produces a unique timestamped file to avoid overwriting previous data.
 
 ## Examples
 

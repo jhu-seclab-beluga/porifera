@@ -724,6 +724,20 @@ def test_instrument_uses_flock(tmp_path: Path):
     assert "LOCK_EX" in content
 
 
+def test_instrument_runtime_helper_logs_value_type(tmp_path: Path):
+    """Runtime helper logs PHP value type in each probe entry."""
+    write_php(tmp_path, "app.php", '<?php\necho "hello";\n')
+    ast = Parser().parse_file(str(tmp_path / "app.php"))
+    target = find_node(ast, "Scalar_String")
+
+    manager = InstrumentationManager(ast)
+    manager.instrument({target.id: "greeting"})
+
+    helper = tmp_path / _RUNTIME_HELPER_NAME
+    content = helper.read_text()
+    assert "'value_type' => gettype($value)" in content
+
+
 def test_public_instrument_with_output_dir(tmp_path: Path):
     """Public instrument() accepts output_dir parameter."""
     output_dir = tmp_path / "output"
