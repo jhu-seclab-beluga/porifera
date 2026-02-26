@@ -1,11 +1,11 @@
-"""Tests for lemur._strategies using real PHP code."""
+"""Tests for porifera._strategies using real PHP code."""
 
 from pathlib import Path
 
 from conftest import find_child, find_node, find_nodes, parse_php
-from lemur._strategies._base import _is_safe_to_wrap
-from lemur._strategies._elevating import ElevatingProbeStrategy
-from lemur._strategies._standard import StandardProbeStrategy
+from porifera._strategies._base import _is_safe_to_wrap
+from porifera._strategies._elevating import ElevatingProbeStrategy
+from porifera._strategies._standard import StandardProbeStrategy
 
 
 # --- _is_safe_to_wrap: rvalue contexts (safe) ---

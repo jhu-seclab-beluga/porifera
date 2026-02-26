@@ -1,4 +1,4 @@
-"""Instrumentation module for injecting runtime probes into PHP source code.
+"""PORIFERA: PHP AST instrumentation module.
 
 Exports public API functions and strategy classes for PHP AST instrumentation.
 """

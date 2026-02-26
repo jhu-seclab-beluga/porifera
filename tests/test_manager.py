@@ -1,4 +1,4 @@
-"""Tests for lemur._manager using real PHP code."""
+"""Tests for porifera._manager using real PHP code."""
 
 from pathlib import Path
 
@@ -6,8 +6,10 @@ import pytest
 from php_parser_py import Parser
 
 from conftest import find_child, find_node, find_nodes, parse_php, write_php
-from lemur._exceptions import InstrumentationError
-from lemur._manager import InstrumentationManager, _RUNTIME_HELPER_NAME, deinstrument, instrument
+from porifera._exceptions import InstrumentationError
+from porifera._manager import InstrumentationManager, _RUNTIME_HELPER_NAME, deinstrument, instrument
+
+import re
 
 
 # --- _resolve_project_root ---
@@ -434,7 +436,7 @@ def test_instrument_mixed_safe_and_unsafe_targets(tmp_path: Path):
 
 def test_instrument_with_elevating_strategy(tmp_path: Path):
     """Manager with ElevatingProbeStrategy elevates lvalue to assignment."""
-    from lemur._strategies._elevating import ElevatingProbeStrategy
+    from porifera._strategies._elevating import ElevatingProbeStrategy
 
     code = '<?php\nfor ($i = 0; $i < 10; $i++) { echo $i; }\n'
     php_file = write_php(tmp_path, "app.php", code)
@@ -614,7 +616,7 @@ def test_public_deinstrument_class_code(tmp_path: Path):
 
 def test_public_instrument_with_elevating_strategy(tmp_path: Path):
     """Public instrument() with ElevatingProbeStrategy."""
-    from lemur._strategies._elevating import ElevatingProbeStrategy
+    from porifera._strategies._elevating import ElevatingProbeStrategy
 
     code = '<?php\n$i = 0;\n$i++;\necho $i;\n'
     php_file = write_php(tmp_path, "app.php", code)
@@ -627,3 +629,88 @@ def test_public_instrument_with_elevating_strategy(tmp_path: Path):
     assert len(result) == 1
     content = php_file.read_text()
     assert "inc_val" in content
+
+
+# --- output_dir ---
+
+def test_instrument_default_output_dir(tmp_path: Path):
+    """Default output_dir uses __DIR__ in generated runtime helper."""
+    write_php(tmp_path, "app.php", '<?php\necho "hello";\n')
+    ast = Parser().parse_file(str(tmp_path / "app.php"))
+    target = find_node(ast, "Scalar_String")
+
+    manager = InstrumentationManager(ast)
+    manager.instrument({target.id: "greeting"})
+
+    helper = tmp_path / _RUNTIME_HELPER_NAME
+    content = helper.read_text()
+    assert "__DIR__ . '/.porifera_data_" in content
+
+
+def test_instrument_custom_output_dir(tmp_path: Path):
+    """Custom output_dir path appears in generated runtime helper."""
+    output_dir = tmp_path / "logs"
+    output_dir.mkdir()
+
+    write_php(tmp_path, "app.php", '<?php\necho "hello";\n')
+    ast = Parser().parse_file(str(tmp_path / "app.php"))
+    target = find_node(ast, "Scalar_String")
+
+    manager = InstrumentationManager(ast, output_dir=output_dir)
+    manager.instrument({target.id: "greeting"})
+
+    helper = tmp_path / _RUNTIME_HELPER_NAME
+    content = helper.read_text()
+    assert str(output_dir.resolve()) in content
+    assert "__DIR__" not in content
+
+
+def test_instrument_runtime_helper_has_timestamp(tmp_path: Path):
+    """Runtime helper filename pattern includes a timestamp."""
+    write_php(tmp_path, "app.php", '<?php\necho "hello";\n')
+    ast = Parser().parse_file(str(tmp_path / "app.php"))
+    target = find_node(ast, "Scalar_String")
+
+    manager = InstrumentationManager(ast)
+    manager.instrument({target.id: "greeting"})
+
+    helper = tmp_path / _RUNTIME_HELPER_NAME
+    content = helper.read_text()
+    # Timestamp format: YYYYMMDD_HHMMSS_hexsuffix
+    assert re.search(
+        r"\.porifera_data_\d{8}_\d{6}_[0-9a-f]{6}\.jsonl", content,
+    )
+
+
+def test_instrument_uses_flock(tmp_path: Path):
+    """Runtime helper uses flock for concurrency-safe writes."""
+    write_php(tmp_path, "app.php", '<?php\necho "hello";\n')
+    ast = Parser().parse_file(str(tmp_path / "app.php"))
+    target = find_node(ast, "Scalar_String")
+
+    manager = InstrumentationManager(ast)
+    manager.instrument({target.id: "greeting"})
+
+    helper = tmp_path / _RUNTIME_HELPER_NAME
+    content = helper.read_text()
+    assert "flock(" in content
+    assert "LOCK_EX" in content
+
+
+def test_public_instrument_with_output_dir(tmp_path: Path):
+    """Public instrument() accepts output_dir parameter."""
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+
+    write_php(tmp_path, "app.php", '<?php\necho "hello";\n')
+    ast = Parser().parse_file(str(tmp_path / "app.php"))
+    target = find_node(ast, "Scalar_String")
+
+    result = instrument(
+        {target.id: "greeting"}, ast, output_dir=output_dir,
+    )
+    assert len(result) == 1
+
+    helper = tmp_path / _RUNTIME_HELPER_NAME
+    content = helper.read_text()
+    assert str(output_dir.resolve()) in content

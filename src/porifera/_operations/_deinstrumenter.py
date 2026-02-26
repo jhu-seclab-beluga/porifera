@@ -1,7 +1,7 @@
 """AST deinstrumentation: removing probe calls to restore original expressions.
 
 Provides ASTDeinstrumenter for identifying and unwrapping probe function calls.
-Identifies probes by __lemur_probe_ prefix matching.
+Identifies probes by __porifera_probe_ prefix matching.
 """
 
 import logging
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class ASTDeinstrumenter:
     """Removes probe function calls by unwrapping to restore original expressions.
 
-    Identifies probes by __lemur_probe_ prefix matching. No constructor params.
+    Identifies probes by __porifera_probe_ prefix matching. No constructor params.
     """
 
     def unwrap_probe_ast(

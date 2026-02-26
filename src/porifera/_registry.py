@@ -1,4 +1,4 @@
-"""Instrumentation registry for persisting state to .lemur_registry.json."""
+"""Instrumentation registry for persisting state to .porifera_registry.json."""
 
 import json
 from pathlib import Path

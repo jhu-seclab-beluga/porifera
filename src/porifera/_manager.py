@@ -7,6 +7,7 @@ functions instrument() and deinstrument().
 import importlib.resources
 import logging
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from php_parser_py import AST, Node, Parser, PrettyPrinter
@@ -18,7 +19,7 @@ from ._strategies import ProbeStrategy, StandardProbeStrategy
 
 logger = logging.getLogger(__name__)
 
-_RUNTIME_HELPER_NAME = "lemur_runtime.php"
+_RUNTIME_HELPER_NAME = "porifera_runtime.php"
 
 
 class InstrumentationManager:
@@ -35,14 +36,19 @@ class InstrumentationManager:
         self,
         project_ast: AST,
         strategy: ProbeStrategy | None = None,
+        output_dir: Path | None = None,
     ) -> None:
         self.project_ast = project_ast
         self._project_root = self._resolve_project_root(project_ast)
         self.registry = InstrumentationRegistry(
-            self._project_root / ".lemur_registry.json",
+            self._project_root / ".porifera_registry.json",
         )
 
         self._probe_func_name = f"{_PROBE_FUNC_PREFIX}{uuid.uuid4().hex[:8]}"
+        self._output_dir = output_dir
+        self._timestamp = (
+            f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+        )
         if strategy is None:
             strategy = StandardProbeStrategy()
 
@@ -176,18 +182,25 @@ class InstrumentationManager:
         return None
 
     def _ensure_runtime_helper(self) -> None:
-        """Copy runtime helper to project root with probe function name substituted."""
+        """Copy runtime helper to project root with placeholders substituted."""
         dest = self._project_root / _RUNTIME_HELPER_NAME
         if dest.exists():
             return
 
         template_ref = importlib.resources.files(
-            "lemur.resources",
+            "porifera.resources",
         ).joinpath(_RUNTIME_HELPER_NAME)
         template_content = template_ref.read_text(encoding="utf-8")
-        content = template_content.replace(
-            "{{PROBE_FUNC_NAME}}",
-            self._probe_func_name,
+
+        if self._output_dir is not None:
+            php_output_dir = f"'{self._output_dir.resolve()}'"
+        else:
+            php_output_dir = "__DIR__"
+
+        content = (
+            template_content.replace("{{PROBE_FUNC_NAME}}", self._probe_func_name)
+            .replace("{{OUTPUT_DIR}}", php_output_dir)
+            .replace("{{TIMESTAMP}}", self._timestamp)
         )
         dest.write_text(content, encoding="utf-8")
 
@@ -288,6 +301,7 @@ def instrument(
     targets: dict[str, str],
     project_ast: AST,
     strategy: ProbeStrategy | None = None,
+    output_dir: Path | None = None,
 ) -> list[Path]:
     """Public API for applying runtime probes to target expressions.
 
@@ -297,6 +311,7 @@ def instrument(
         targets: Maps node_id -> expr_key.
         project_ast: Parsed project AST.
         strategy: Wrapping strategy (default: StandardProbeStrategy).
+        output_dir: Directory for probe output file. Defaults to project root.
 
     Returns:
         List of modified file paths.
@@ -304,7 +319,7 @@ def instrument(
     Raises:
         InstrumentationError: On failure.
     """
-    manager = InstrumentationManager(project_ast, strategy)
+    manager = InstrumentationManager(project_ast, strategy, output_dir)
     return manager.instrument(targets)
 
 

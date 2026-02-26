@@ -15,7 +15,7 @@ from .._strategies import ProbeStrategy
 
 logger = logging.getLogger(__name__)
 
-_PROBE_FUNC_PREFIX = "__lemur_probe_"
+_PROBE_FUNC_PREFIX = "__porifera_probe_"
 
 
 class ASTInstrumenter:

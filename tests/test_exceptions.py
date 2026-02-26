@@ -1,6 +1,6 @@
-"""Tests for lemur._exceptions."""
+"""Tests for porifera._exceptions."""
 
-from lemur._exceptions import DeinstrumentationError, InstrumentationError
+from porifera._exceptions import DeinstrumentationError, InstrumentationError
 
 
 def test_instrumentation_error_message_preserved():

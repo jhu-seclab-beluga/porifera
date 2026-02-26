@@ -1,16 +1,16 @@
-"""Tests for lemur._registry."""
+"""Tests for porifera._registry."""
 
 import json
 from pathlib import Path
 
 import pytest
 
-from lemur._registry import InstrumentationRegistry
+from porifera._registry import InstrumentationRegistry
 
 
 @pytest.fixture()
 def registry_path(tmp_path: Path) -> Path:
-    return tmp_path / ".lemur_registry.json"
+    return tmp_path / ".porifera_registry.json"
 
 
 def test_init_empty(registry_path: Path):

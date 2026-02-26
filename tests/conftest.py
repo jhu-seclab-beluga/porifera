@@ -1,4 +1,4 @@
-"""Shared test fixtures for lemur tests.
+"""Shared test fixtures for porifera tests.
 
 Provides helpers for creating real PHP files and parsing them with php-parser-py.
 """
@@ -77,7 +77,7 @@ def find_nodes(ast: AST, node_type: str) -> list[Node]:
     return [n for n in ast.nodes() if n.node_type == node_type]
 
 
-def find_child(ast: AST, parent: Node, field: str) -> Node | None:
+def find_child(ast: AST, parent: Node, field: str) -> Node:
     """Find a child node by edge field name.
 
     Args:
@@ -88,7 +88,8 @@ def find_child(ast: AST, parent: Node, field: str) -> Node | None:
     Returns:
         Child node, or None if not found.
     """
-    return next(ast.succ(parent, lambda e: e.get("field") == field), None)
+    children = ast.succ(parent, lambda e: e.get("field") == field)
+    return next(children)
 
 
 @pytest.fixture()
