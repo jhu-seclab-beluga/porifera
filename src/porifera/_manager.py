@@ -125,12 +125,13 @@ class InstrumentationManager:
         Raises:
             DeinstrumentationError: On failure.
         """
-        if use_registry:
-            modified_files = self._deinstrument_registry()
-        else:
-            modified_files = self._deinstrument_scan()
-
-        self._cleanup()
+        try:
+            if use_registry:
+                modified_files = self._deinstrument_registry()
+            else:
+                modified_files = self._deinstrument_scan()
+        finally:
+            self._cleanup()
         return modified_files
 
     def _group_targets_by_file(
@@ -182,10 +183,12 @@ class InstrumentationManager:
         return None
 
     def _ensure_runtime_helper(self) -> None:
-        """Copy runtime helper to project root with placeholders substituted."""
+        """Copy runtime helper to project root with placeholders substituted.
+
+        Always overwrites any existing helper to guarantee the probe function
+        name matches the current InstrumentationManager instance.
+        """
         dest = self._project_root / _RUNTIME_HELPER_NAME
-        if dest.exists():
-            return
 
         template_ref = importlib.resources.files(
             "porifera.resources",
