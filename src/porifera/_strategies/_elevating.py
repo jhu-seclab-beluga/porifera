@@ -7,7 +7,7 @@ is True.
 
 from php_parser_py import AST, Node
 
-from ._base import ProbeStrategy, _is_safe_to_wrap
+from ._base import ProbeStrategy, _is_safe_to_wrap, _resolve_define_value_arg
 
 
 class ElevatingProbeStrategy(ProbeStrategy):
@@ -23,6 +23,9 @@ class ElevatingProbeStrategy(ProbeStrategy):
         node: Node,
         wrapped_node_ids: set[str],
     ) -> Node | None:
+        redirected = _resolve_define_value_arg(ast, node)
+        if redirected is not None:
+            node = redirected
         if node.id in wrapped_node_ids:
             return None
 

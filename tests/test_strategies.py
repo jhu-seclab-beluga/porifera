@@ -4,7 +4,10 @@ from pathlib import Path
 
 from conftest import find_child, find_node, find_nodes, parse_php
 
-from porifera._strategies._base import _is_safe_to_wrap
+from porifera._strategies._base import (
+    _is_safe_to_wrap,
+    _resolve_define_value_arg,
+)
 from porifera._strategies._elevating import ElevatingProbeStrategy
 from porifera._strategies._standard import StandardProbeStrategy
 
@@ -617,3 +620,99 @@ def test_elevating_compound_mul_assign_lvalue(tmp_path: Path):
     result = strategy.select_wrap_target(ast, lhs, set())
     assert result is not None
     assert result.id == assign_op.id
+
+
+# --- _resolve_define_value_arg ---
+
+
+def test_resolve_define_value_simple_string(tmp_path: Path):
+    """define('FOO', 'bar') → resolves to Scalar_String 'bar'."""
+    ast = parse_php(tmp_path, code="<?php\ndefine('FOO', 'bar');\n")
+    define_call = find_node(ast, "Expr_FuncCall")
+    result = _resolve_define_value_arg(ast, define_call)
+    assert result is not None
+    assert result.node_type == "Scalar_String"
+    assert result.get_property("value") == "bar"
+
+
+def test_resolve_define_value_with_fallback(tmp_path: Path):
+    """define('X', getenv('X') ?: 'default') → resolves to coalesce expression."""
+    ast = parse_php(
+        tmp_path, code="<?php\ndefine('X', getenv('X') ?: 'default');\n"
+    )
+    define_call = find_node(ast, "Expr_FuncCall")
+    # The outer Expr_FuncCall is define(); find it specifically
+    func_calls = find_nodes(ast, "Expr_FuncCall")
+    define_call = None
+    for fc in func_calls:
+        name_children = list(ast.succ(fc, lambda e: e.get("field") == "name"))
+        if name_children and name_children[0].get_property("parts") == ["define"]:
+            define_call = fc
+            break
+    assert define_call is not None
+    result = _resolve_define_value_arg(ast, define_call)
+    assert result is not None
+    assert result.node_type == "Expr_Ternary"
+
+
+def test_resolve_define_value_integer(tmp_path: Path):
+    """define('MAX', 100) → resolves to Scalar_LNumber."""
+    ast = parse_php(tmp_path, code="<?php\ndefine('MAX', 100);\n")
+    define_call = find_node(ast, "Expr_FuncCall")
+    result = _resolve_define_value_arg(ast, define_call)
+    assert result is not None
+    assert result.node_type == "Scalar_LNumber"
+
+
+def test_resolve_define_returns_none_for_non_define(tmp_path: Path):
+    """Regular function call foo('x') → returns None."""
+    ast = parse_php(tmp_path, code="<?php\nfoo('x');\n")
+    func_call = find_node(ast, "Expr_FuncCall")
+    result = _resolve_define_value_arg(ast, func_call)
+    assert result is None
+
+
+def test_resolve_define_returns_none_for_non_func_call(tmp_path: Path):
+    """Non-function-call node → returns None."""
+    ast = parse_php(tmp_path, code="<?php\n$x = 42;\n")
+    scalar = find_node(ast, "Scalar_LNumber")
+    result = _resolve_define_value_arg(ast, scalar)
+    assert result is None
+
+
+# --- StandardProbeStrategy: define() redirect ---
+
+
+def test_standard_define_redirects_to_value(tmp_path: Path):
+    """StandardProbeStrategy wraps the value arg, not the define() call."""
+    ast = parse_php(tmp_path, code="<?php\ndefine('CURRENCY', 'USD');\n")
+    define_call = find_node(ast, "Expr_FuncCall")
+    strategy = StandardProbeStrategy()
+    result = strategy.select_wrap_target(ast, define_call, set())
+    assert result is not None
+    assert result.node_type == "Scalar_String"
+    assert result.get_property("value") == "USD"
+
+
+def test_standard_define_already_wrapped_value(tmp_path: Path):
+    """StandardProbeStrategy returns None if value arg is already wrapped."""
+    ast = parse_php(tmp_path, code="<?php\ndefine('CURRENCY', 'USD');\n")
+    define_call = find_node(ast, "Expr_FuncCall")
+    value_node = _resolve_define_value_arg(ast, define_call)
+    strategy = StandardProbeStrategy()
+    result = strategy.select_wrap_target(ast, define_call, {value_node.id})
+    assert result is None
+
+
+# --- ElevatingProbeStrategy: define() redirect ---
+
+
+def test_elevating_define_redirects_to_value(tmp_path: Path):
+    """ElevatingProbeStrategy wraps the value arg, not the define() call."""
+    ast = parse_php(tmp_path, code="<?php\ndefine('CURRENCY', 'USD');\n")
+    define_call = find_node(ast, "Expr_FuncCall")
+    strategy = ElevatingProbeStrategy()
+    result = strategy.select_wrap_target(ast, define_call, set())
+    assert result is not None
+    assert result.node_type == "Scalar_String"
+    assert result.get_property("value") == "USD"

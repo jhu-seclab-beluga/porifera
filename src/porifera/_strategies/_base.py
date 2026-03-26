@@ -57,6 +57,40 @@ def _is_safe_to_wrap(ast: AST, node: Node) -> bool:
     return (parent_node.node_type, edge_field) not in _UNSAFE_WRAP_CONTEXTS
 
 
+def _resolve_define_value_arg(ast: AST, node: Node) -> Node | None:
+    """For define() calls, return the value argument expression.
+
+    PHP ``define('NAME', value)`` returns ``true``, not the defined value.
+    When probing a define() call, we want to capture ``value`` (2nd arg),
+    not the boolean return.
+
+    Returns None if node is not a define() call or has no 2nd argument.
+    """
+    if node.node_type != "Expr_FuncCall":
+        return None
+
+    name_children = list(ast.succ(node, lambda e: e.get("field") == "name"))
+    if not name_children or name_children[0].node_type != "Name":
+        return None
+    parts = name_children[0].get_property("parts")
+    if parts != ["define"]:
+        return None
+
+    arg_children = list(
+        ast.succ(node, lambda e: e.get("field") == "args" and e.get("index") == 1)
+    )
+    if not arg_children:
+        return None
+
+    value_children = list(
+        ast.succ(arg_children[0], lambda e: e.get("field") == "value")
+    )
+    if not value_children:
+        return None
+
+    return value_children[0]
+
+
 class ProbeStrategy(ABC):
     """Selects which node to wrap. Pure decision logic — no AST mutation, no probe naming.
 
