@@ -4,6 +4,8 @@ Provides InstrumentationManager for lifecycle management and public API
 functions instrument() and deinstrument().
 """
 
+from __future__ import annotations
+
 import importlib.resources
 import logging
 import os
