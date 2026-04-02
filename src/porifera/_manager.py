@@ -6,6 +6,7 @@ functions instrument() and deinstrument().
 
 import importlib.resources
 import logging
+import os
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -210,9 +211,18 @@ class InstrumentationManager:
     def _inject_require(self, file_path: Path) -> None:
         """Inject require_once for runtime helper after <?php tag."""
         content = file_path.read_text(encoding="utf-8")
-        require_line = f"require_once __DIR__ . '/{_RUNTIME_HELPER_NAME}';"
 
-        if require_line in content:
+        # Compute relative path from the PHP file's directory to the project root
+        # so subdirectory files can find the runtime helper.
+        file_dir = file_path.parent
+        rel_path = os.path.relpath(self._project_root, file_dir)
+        if rel_path == ".":
+            require_path = f"__DIR__ . '/{_RUNTIME_HELPER_NAME}'"
+        else:
+            require_path = f"__DIR__ . '/{rel_path}/{_RUNTIME_HELPER_NAME}'"
+        require_line = f"require_once {require_path};"
+
+        if _RUNTIME_HELPER_NAME in content:
             return
 
         if "<?php" in content:
